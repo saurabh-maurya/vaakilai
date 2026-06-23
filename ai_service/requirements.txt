@@ -23,7 +23,7 @@ pinecone-client==5.0.1
 faiss-cpu==1.14.3
 
 # HTTP
-httpx==0.27.0
+httpx==0.28.1
 
 # Rate limiting
 slowapi==0.1.9
