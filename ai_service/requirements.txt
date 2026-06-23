@@ -56,7 +56,7 @@ huggingface-hub==0.24.0
 sentry-sdk[fastapi]==2.8.0
 
 # Redis (distributed rate limiting)
-redis==5.0.4
+redis==8.0.1
 
 # Metrics (Prometheus)
 prometheus-fastapi-instrumentator==6.1.0
