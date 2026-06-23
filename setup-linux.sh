@@ -495,9 +495,10 @@ if [ ! -f "$BACKEND_VENV/bin/python" ]; then
   python3 -m venv "$BACKEND_VENV"
 fi
 
-info "Installing backend pip dependencies (this may take a few minutes)..."
-"$BACKEND_VENV/bin/pip" install --upgrade pip -q --no-cache-dir --disable-pip-version-check
-if ! "$BACKEND_VENV/bin/pip" install -r "$BACKEND/requirements.txt" -q \
+info "Installing backend pip dependencies..."
+info "(Pillow + pydantic-core compile from source on Python 3.14 — this can take 5-10 min)"
+"$BACKEND_VENV/bin/pip" install --upgrade pip --no-cache-dir --disable-pip-version-check
+if ! "$BACKEND_VENV/bin/pip" install -r "$BACKEND/requirements.txt" \
      --no-cache-dir --disable-pip-version-check; then
   error "Backend pip install failed (check disk space: df -h)"
 fi
@@ -512,9 +513,10 @@ if [ ! -f "$AI_VENV/bin/python" ]; then
   python3 -m venv "$AI_VENV"
 fi
 
-info "Installing AI service pip dependencies (LangGraph, Anthropic SDK — may take a few minutes)..."
-"$AI_VENV/bin/pip" install --upgrade pip -q --no-cache-dir --disable-pip-version-check
-if ! "$AI_VENV/bin/pip" install -r "$AI/requirements.txt" -q \
+info "Installing AI service pip dependencies (LangGraph, Anthropic SDK)..."
+info "(pydantic-core compiles from source on Python 3.14 — this can take 5-10 min)"
+"$AI_VENV/bin/pip" install --upgrade pip --no-cache-dir --disable-pip-version-check
+if ! "$AI_VENV/bin/pip" install -r "$AI/requirements.txt" \
      --no-cache-dir --disable-pip-version-check; then
   error "AI service pip install failed (check disk space: df -h)"
 fi
