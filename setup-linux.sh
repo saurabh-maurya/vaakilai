@@ -232,6 +232,18 @@ else
   nvm alias default "$NODE_REQUIRED"
   nvm use "$NODE_REQUIRED"
 
+  # nvm use updates PATH via shell functions, but those don't always propagate
+  # in non-interactive scripts. Explicitly find and prepend the node bin dir.
+  _node_bin="$(nvm which "$NODE_REQUIRED" 2>/dev/null || true)"
+  if [ -z "$_node_bin" ]; then
+    # Fallback: find the highest-versioned v20.x directory nvm created
+    _node_bin="$(ls -d "$NVM_DIR/versions/node/v${NODE_REQUIRED}"*/bin/node 2>/dev/null \
+                 | sort -V | tail -1 || true)"
+  fi
+  if [ -n "$_node_bin" ] && [ -f "$_node_bin" ]; then
+    export PATH="$(dirname "$_node_bin"):$PATH"
+  fi
+
   # Add nvm to shell rc files so it persists after reboot
   for RC in "$HOME/.bashrc" "$HOME/.bash_profile" "$HOME/.profile"; do
     if [ -f "$RC" ] && ! grep -q 'NVM_DIR' "$RC"; then
