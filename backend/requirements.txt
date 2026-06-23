@@ -1,0 +1,33 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+motor==3.4.0
+pymongo==4.7.2
+pydantic==2.7.1
+pydantic-settings==2.2.1
+PyJWT[crypto]==2.9.0
+cryptography==42.0.8
+passlib[argon2]==1.7.4
+argon2-cffi==23.1.0
+python-multipart==0.0.9
+httpx==0.27.0
+boto3==1.34.107
+razorpay==1.4.1
+twilio==9.0.5
+python-dotenv==1.0.1
+aiofiles==23.2.1
+Pillow==10.3.0
+reportlab==4.2.0
+qrcode[pil]==7.4.2
+celery==5.4.0
+redis==5.0.4
+slowapi==0.1.9
+pyotp==2.9.0
+pyclamd==0.4.0
+python-json-logger==2.0.7
+certifi>=2024.0.0
+
+# Error tracking
+sentry-sdk[fastapi]==2.8.0
+
+# Metrics (Prometheus)
+prometheus-fastapi-instrumentator==6.1.0

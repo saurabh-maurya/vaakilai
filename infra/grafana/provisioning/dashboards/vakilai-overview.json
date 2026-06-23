@@ -1,0 +1,82 @@
+{
+  "uid": "vakilai-overview",
+  "title": "VakilAI — Service Overview",
+  "tags": ["vakilai"],
+  "timezone": "Asia/Kolkata",
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Rate (req/s)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{job=~\"vakilai-.*\"}[1m])) by (job)",
+          "legendFormat": "{{job}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "P95 Latency (ms)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=~\"vakilai-.*\"}[5m])) by (job, le)) * 1000",
+          "legendFormat": "{{job}} p95"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Error Rate (%)",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 8},
+      "targets": [
+        {
+          "expr": "100 * sum(rate(http_requests_total{job=~\"vakilai-.*\", status_code=~\"5..\"}[1m])) by (job) / sum(rate(http_requests_total{job=~\"vakilai-.*\"}[1m])) by (job)",
+          "legendFormat": "{{job}} 5xx %"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "AI Consultation Requests",
+      "type": "timeseries",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 8},
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{job=\"vakilai-ai-service\", handler=~\"/ai/consult.*\"}[1m]))",
+          "legendFormat": "consult req/s"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Active HTTP Connections",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 0, "y": 16},
+      "targets": [
+        {
+          "expr": "sum(http_requests_inprogress{job=~\"vakilai-.*\"})",
+          "legendFormat": "in-flight"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Total Requests (24h)",
+      "type": "stat",
+      "gridPos": {"h": 4, "w": 6, "x": 6, "y": 16},
+      "targets": [
+        {
+          "expr": "sum(increase(http_requests_total{job=~\"vakilai-.*\"}[24h]))",
+          "legendFormat": "requests"
+        }
+      ]
+    }
+  ]
+}

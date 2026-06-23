@@ -1,0 +1,296 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: vakilai-redis
+    restart: unless-stopped
+    command: redis-server --save 60 1 --loglevel warning --requirepass ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    networks:
+      - vakilai-net
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  mongodb:
+    image: mongo:7
+    container_name: vakilai-mongo
+    restart: unless-stopped
+    # NOTE: set MONGO_ROOT_USER and MONGO_ROOT_PASSWORD in .env (never hardcode here)
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+    # IMPORTANT: Do NOT expose port 27017 to the host in production.
+    # Remove or comment out the next two lines for production deployments.
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - vakilai-net
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand({ping:1})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  backend:
+    build: ./backend
+    container_name: vakilai-backend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 256M
+    # Pass only the variables the backend actually needs — never all of .env
+    environment:
+      - MONGODB_URL=mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongodb:27017/${MONGODB_DB_NAME}?authSource=admin
+      - MONGODB_DB_NAME=${MONGODB_DB_NAME}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - JWT_EXPIRE_MINUTES=${JWT_EXPIRE_MINUTES}
+      - APP_ENV=${APP_ENV}
+      - DEBUG=${DEBUG}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - METRICS_TOKEN=${METRICS_TOKEN}
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - S3_BUCKET_DOCUMENTS=${S3_BUCKET_DOCUMENTS}
+      - S3_BUCKET_INVOICES=${S3_BUCKET_INVOICES}
+      - RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
+      - RAZORPAY_KEY_SECRET=${RAZORPAY_KEY_SECRET}
+      - TWILIO_ACCOUNT_SID=${TWILIO_ACCOUNT_SID}
+      - TWILIO_AUTH_TOKEN=${TWILIO_AUTH_TOKEN}
+      - TWILIO_PHONE_NUMBER=${TWILIO_PHONE_NUMBER}
+      - WHATSAPP_API_TOKEN=${WHATSAPP_API_TOKEN}
+      - WHATSAPP_PHONE_ID=${WHATSAPP_PHONE_ID}
+      - AI_SERVICE_URL=http://ai-service:8001
+      - INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/0
+      - SENTRY_DSN=${SENTRY_DSN}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - vakilai-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  ai-service:
+    build: ./ai_service
+    container_name: vakilai-ai
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: "2.0"
+        reservations:
+          memory: 512M
+    # Pass only AI-service-specific variables
+    environment:
+      - MONGODB_URL=mongodb://${MONGO_ROOT_USER}:${MONGO_ROOT_PASSWORD}@mongodb:27017/${MONGODB_DB_NAME}?authSource=admin
+      - MONGODB_DB_NAME=${MONGODB_DB_NAME}
+      - JWT_SECRET=${JWT_SECRET}
+      - JWT_ALGORITHM=${JWT_ALGORITHM}
+      - APP_ENV=${APP_ENV}
+      - DEBUG=${DEBUG}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:3000}
+      - METRICS_TOKEN=${METRICS_TOKEN}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - CLAUDE_MODEL=${CLAUDE_MODEL}
+      - AI_PROVIDER=${AI_PROVIDER}
+      - PINECONE_API_KEY=${PINECONE_API_KEY}
+      - PINECONE_ENV=${PINECONE_ENV}
+      - PINECONE_INDEX=${PINECONE_INDEX}
+      - FAISS_INDEX_PATH=${FAISS_INDEX_PATH}
+      - CASES_DATA_PATH=${CASES_DATA_PATH}
+      - INTERNAL_SERVICE_KEY=${INTERNAL_SERVICE_KEY}
+      - REDIS_URL=redis://:${REDIS_PASSWORD}@redis:6379/1
+      - SENTRY_DSN=${SENTRY_DSN}
+    ports:
+      - "127.0.0.1:8001:8001"
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - vakilai-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build: ./frontend
+    container_name: vakilai-frontend
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+        reservations:
+          memory: 128M
+    # Frontend only needs public-facing env vars — NO secrets
+    environment:
+      - NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
+      - NEXT_PUBLIC_AI_URL=http://localhost:8001
+      - NEXT_PUBLIC_APP_NAME=VakilAI
+      - NEXT_PUBLIC_RAZORPAY_KEY_ID=${RAZORPAY_KEY_ID}
+      - NODE_ENV=production
+    ports:
+      - "127.0.0.1:3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    networks:
+      - vakilai-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ── Prometheus (metrics scraper) ──────────────────────────────────────────
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: vakilai-prometheus
+    restart: unless-stopped
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=15d"
+      - "--web.enable-lifecycle"
+    environment:
+      - METRICS_TOKEN=${METRICS_TOKEN}
+    volumes:
+      - ./infra/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+      # Token file written by entrypoint so Prometheus can auth against /metrics
+      - ./infra/metrics_token:/etc/prometheus/metrics_token:ro
+    # Bound to localhost — not exposed publicly
+    ports:
+      - "127.0.0.1:9090:9090"
+    networks:
+      - vakilai-net
+    depends_on:
+      - backend
+      - ai-service
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── Grafana (metrics dashboard) ───────────────────────────────────────────
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: vakilai-grafana
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3001
+      - GF_ANALYTICS_REPORTING_ENABLED=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+    # Bound to localhost — not exposed publicly
+    ports:
+      - "127.0.0.1:3001:3000"
+    networks:
+      - vakilai-net
+    depends_on:
+      - prometheus
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  # ── MongoDB backup (daily dump to ./backups/) ─────────────────────────────
+  mongo-backup:
+    image: mongo:7
+    container_name: vakilai-mongo-backup
+    restart: unless-stopped
+    environment:
+      MONGO_ROOT_USER: ${MONGO_ROOT_USER}
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD}
+      MONGODB_DB_NAME: ${MONGODB_DB_NAME}
+    volumes:
+      - ./backups:/backups
+    networks:
+      - vakilai-net
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    # Run mongodump daily, keep last 7 days of backups.
+    # Uses --uri to avoid password appearing in process list (visible via /proc).
+    entrypoint: >
+      sh -c "while true; do
+        STAMP=$$(date +%Y%m%d_%H%M%S);
+        URI=\"mongodb://$$MONGO_ROOT_USER:$$MONGO_ROOT_PASSWORD@mongodb:27017/$$MONGODB_DB_NAME?authSource=admin\";
+        mongodump --uri=\"$$URI\" --out /backups/$$STAMP
+          && echo \"Backup $$STAMP complete\"
+          || echo \"Backup $$STAMP FAILED\";
+        find /backups -maxdepth 1 -type d -mtime +7 -exec rm -rf {} +;
+        sleep 86400;
+      done"
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+          cpus: "0.25"
+
+volumes:
+  mongo_data:
+  redis_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  vakilai-net:
+    driver: bridge

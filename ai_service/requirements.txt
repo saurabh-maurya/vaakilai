@@ -1,0 +1,62 @@
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+python-dotenv==1.0.1
+pydantic==2.8.2
+pydantic-settings==2.4.0
+
+# LangGraph + LangChain (compatible pinned set)
+langgraph==0.2.28
+langchain-core==0.3.0
+langchain-anthropic==0.2.0
+langchain-community==0.3.0
+
+# Anthropic SDK
+anthropic==0.34.0
+
+# SSE streaming
+sse-starlette==2.1.0
+
+# Vector DB client (Pinecone) — optional
+pinecone-client==5.0.1
+
+# FAISS (local vector search — CPU only)
+faiss-cpu==1.8.0
+
+# HTTP
+httpx==0.27.0
+
+# Rate limiting
+slowapi==0.1.9
+
+# JWT validation (PyJWT replaces python-jose which has known CVEs)
+PyJWT[crypto]==2.9.0
+
+# Multipart (for PDF upload)
+python-multipart==0.0.9
+
+# PDF text extraction
+pypdf==4.0.0
+
+# Numpy (for FAISS vector ops)
+numpy==1.26.4
+
+# Motor (MongoDB async — for AI service DB access)
+motor==3.4.0
+pymongo==4.7.2
+certifi==2024.7.4
+
+# Structured JSON logging (SIEM-compatible)
+python-json-logger==2.0.7
+
+# HuggingFace Datasets — for NyayaAnumana bulk ingestion
+datasets==2.20.0
+huggingface-hub==0.24.0
+
+# Error tracking
+sentry-sdk[fastapi]==2.8.0
+
+# Redis (distributed rate limiting)
+redis==5.0.4
+
+# Metrics (Prometheus)
+prometheus-fastapi-instrumentator==6.1.0

@@ -1,0 +1,21 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(chmod +x /Users/saurabh/Documents/personal/vaakilai/setup.sh /Users/saurabh/Documents/personal/vaakilai/start.sh /Users/saurabh/Documents/personal/vaakilai/stop.sh)",
+      "Bash(bash /Users/saurabh/Documents/personal/vaakilai/setup.sh 2>&1)",
+      "Bash(grep -rn \"phone\\\\|index\\\\|ensure_index\" /Users/saurabh/Documents/personal/vaakilai/backend/ --include=*.py)",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/auth/register -H \"Content-Type: application/json\" -d '{\"\"\"\"name\"\"\"\":\"\"\"\"Test User\"\"\"\",\"\"\"\"email\"\"\"\":\"\"\"\"testuser123@example.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"Test1234!\"\"\"\",\"\"\"\"role\"\"\"\":\"\"\"\"consumer\"\"\"\"}')",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl:*)",
+      "WebSearch",
+      "Bash(nvm ls:*)",
+      "Bash(source ~/.nvm/nvm.sh)",
+      "Bash(nvm use:*)",
+      "Bash(npm run:*)",
+      "Bash(npm ls:*)",
+      "Bash(grep -l 'AppLayout title' /Users/saurabh/Documents/personal/vaakilai/frontend/src/app/pro/*/page.tsx)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); deps={**d.get\\(''''dependencies'''',{}\\), **d.get\\(''''devDependencies'''',{}\\)}; print\\(json.dumps\\({k: deps[k] for k in [''''next'''',''''react'''',''''postcss'''',''''tailwindcss'''',''''axios'''',''''typescript''''] if k in deps}, indent=2\\)\\)\")",
+      "Bash(npm update:*)"
+    ]
+  }
+}

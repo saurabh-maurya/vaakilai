@@ -1,0 +1,30 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: "${APP_ENV:-development}"
+    app: vakilai
+
+scrape_configs:
+  - job_name: vakilai-backend
+    static_configs:
+      - targets: ["backend:8000"]
+        labels:
+          service: backend
+    metrics_path: /metrics
+    # Authenticate with the METRICS_TOKEN set in .env
+    authorization:
+      credentials_file: /etc/prometheus/metrics_token
+
+  - job_name: vakilai-ai-service
+    static_configs:
+      - targets: ["ai-service:8001"]
+        labels:
+          service: ai-service
+    metrics_path: /metrics
+    authorization:
+      credentials_file: /etc/prometheus/metrics_token
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
