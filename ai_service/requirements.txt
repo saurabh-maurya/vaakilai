@@ -49,7 +49,7 @@ certifi==2024.7.4
 python-json-logger==2.0.7
 
 # HuggingFace Datasets — for NyayaAnumana bulk ingestion
-datasets==2.20.0
+datasets==5.0.0
 huggingface-hub==0.26.2
 
 # Error tracking
