@@ -550,12 +550,7 @@ export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
 step "4/7  Backend — Python dependencies"
 
 BACKEND_VENV="$BACKEND/venv"
-_existing_minor="$(_venv_py_minor "$BACKEND_VENV")"
-if [ -d "$BACKEND_VENV" ] && [ "$_existing_minor" != "$PY_MINOR" ]; then
-  warn "Backend venv is Python 3.${_existing_minor}, need Python 3.${PY_MINOR} — deleting and recreating..."
-  rm -rf "$BACKEND_VENV"
-fi
-info "Creating backend virtualenv ($("$PYTHON_BIN" --version)) at $BACKEND_VENV ..."
+info "Removing old backend venv (if any) and recreating with $("$PYTHON_BIN" --version) ..."
 rm -rf "$BACKEND_VENV"
 "$PYTHON_BIN" -m venv "$BACKEND_VENV"
 
@@ -571,12 +566,7 @@ success "Backend Python dependencies installed"
 step "5/7  AI Service — Python dependencies"
 
 AI_VENV="$AI/venv"
-_existing_minor="$(_venv_py_minor "$AI_VENV")"
-if [ -d "$AI_VENV" ] && [ "$_existing_minor" != "$PY_MINOR" ]; then
-  warn "AI service venv is Python 3.${_existing_minor}, need Python 3.${PY_MINOR} — deleting and recreating..."
-  rm -rf "$AI_VENV"
-fi
-info "Creating ai_service virtualenv ($("$PYTHON_BIN" --version)) at $AI_VENV ..."
+info "Removing old ai_service venv (if any) and recreating with $("$PYTHON_BIN" --version) ..."
 rm -rf "$AI_VENV"
 "$PYTHON_BIN" -m venv "$AI_VENV"
 
