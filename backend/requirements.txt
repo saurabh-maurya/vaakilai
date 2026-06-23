@@ -21,7 +21,7 @@ qrcode[pil]==7.4.2
 celery==5.4.0
 redis==5.0.4
 slowapi==0.1.9
-pyotp==2.9.0
+pyotp==2.10.0
 pyclamd==0.4.0
 python-json-logger==2.0.7
 certifi>=2024.0.0
