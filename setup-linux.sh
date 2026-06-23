@@ -534,17 +534,32 @@ else
   success "frontend/.env.local already exists"
 fi
 
+# ── Venv Python version check helper ─────────────────────────────────────────
+# Returns the minor version of the Python inside a venv, or 99 if not found.
+_venv_py_minor() {
+  "$1/bin/python" -c "import sys; print(sys.version_info.minor)" 2>/dev/null || echo 99
+}
+
+# If PYO3_USE_ABI3_FORWARD_COMPATIBILITY is needed (Python >=3.13 only):
+# allows pydantic-core's Rust build to target the stable ABI instead of
+# failing with "Python X.Y is newer than PyO3's maximum supported version".
+# Has no effect on Python <=3.12 (pre-built wheels are used instead).
+export PYO3_USE_ABI3_FORWARD_COMPATIBILITY=1
+
 # ── 4. Backend Python venv ─────────────────────────────────────────────────────
 step "4/7  Backend — Python dependencies"
 
 BACKEND_VENV="$BACKEND/venv"
-if [ ! -f "$BACKEND_VENV/bin/python" ]; then
-  info "Creating backend virtualenv ($("$PYTHON_BIN" --version)) at $BACKEND_VENV ..."
-  "$PYTHON_BIN" -m venv "$BACKEND_VENV"
+_existing_minor="$(_venv_py_minor "$BACKEND_VENV")"
+if [ -d "$BACKEND_VENV" ] && [ "$_existing_minor" != "$PY_MINOR" ]; then
+  warn "Backend venv is Python 3.${_existing_minor}, need Python 3.${PY_MINOR} — deleting and recreating..."
+  rm -rf "$BACKEND_VENV"
 fi
+info "Creating backend virtualenv ($("$PYTHON_BIN" --version)) at $BACKEND_VENV ..."
+rm -rf "$BACKEND_VENV"
+"$PYTHON_BIN" -m venv "$BACKEND_VENV"
 
 info "Installing backend pip dependencies..."
-[ "$PY_MINOR" -ge 13 ] && info "(Source compilation required on Python 3.1${PY_MINOR} — may take 20-40 min)"
 "$BACKEND_VENV/bin/pip" install --upgrade pip --no-cache-dir --disable-pip-version-check
 if ! "$BACKEND_VENV/bin/pip" install -r "$BACKEND/requirements.txt" \
      --no-cache-dir --disable-pip-version-check; then
@@ -556,13 +571,16 @@ success "Backend Python dependencies installed"
 step "5/7  AI Service — Python dependencies"
 
 AI_VENV="$AI/venv"
-if [ ! -f "$AI_VENV/bin/python" ]; then
-  info "Creating ai_service virtualenv ($("$PYTHON_BIN" --version)) at $AI_VENV ..."
-  "$PYTHON_BIN" -m venv "$AI_VENV"
+_existing_minor="$(_venv_py_minor "$AI_VENV")"
+if [ -d "$AI_VENV" ] && [ "$_existing_minor" != "$PY_MINOR" ]; then
+  warn "AI service venv is Python 3.${_existing_minor}, need Python 3.${PY_MINOR} — deleting and recreating..."
+  rm -rf "$AI_VENV"
 fi
+info "Creating ai_service virtualenv ($("$PYTHON_BIN" --version)) at $AI_VENV ..."
+rm -rf "$AI_VENV"
+"$PYTHON_BIN" -m venv "$AI_VENV"
 
 info "Installing AI service pip dependencies (LangGraph, Anthropic SDK)..."
-[ "$PY_MINOR" -ge 13 ] && info "(Source compilation required on Python 3.1${PY_MINOR} — may take 20-40 min)"
 "$AI_VENV/bin/pip" install --upgrade pip --no-cache-dir --disable-pip-version-check
 if ! "$AI_VENV/bin/pip" install -r "$AI/requirements.txt" \
      --no-cache-dir --disable-pip-version-check; then
