@@ -99,21 +99,48 @@ fi
 success "Python $(python3 --version | awk '{print $2}') OK"
 
 # ── pip3 ──────────────────────────────────────────────────────────────────────
-if ! python3 -m pip --version &>/dev/null; then
-  info "pip3 not found — installing python3-pip..."
+# Install order:
+#   1. ensurepip  — stdlib module, works for any Python version (no network needed)
+#   2. apt/dnf/yum python3-pip  — works for distro-packaged Python
+#   3. get-pip.py bootstrap     — always works, fetches from pypa.io (fallback)
+if ! python3 -m pip --version &>/dev/null 2>&1; then
+  info "pip not found — trying ensurepip (built-in)..."
+  python3 -m ensurepip --upgrade 2>/dev/null || true
+  # ensurepip installs to user site on some systems; also upgrade to latest
+  if python3 -m pip --version &>/dev/null 2>&1; then
+    python3 -m pip install --upgrade pip -q 2>/dev/null || true
+  fi
+fi
+
+if ! python3 -m pip --version &>/dev/null 2>&1; then
+  info "ensurepip not available — trying package manager..."
   case "$PKG_MGR" in
-    apt) sudo apt-get install -y -qq python3-pip >/dev/null ;;
-    dnf) sudo dnf install -y -q python3-pip >/dev/null ;;
-    yum) sudo yum install -y -q python3-pip >/dev/null ;;
-    *)   error "pip3 not found and no package manager detected. Install pip3 manually." ;;
+    apt)
+      # Try versioned package first (e.g. python3.14-pip doesn't exist yet for new Pythons)
+      PY_VER="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+      sudo apt-get install -y -qq "python${PY_VER}-pip" 2>/dev/null \
+        || sudo apt-get install -y -qq python3-pip 2>/dev/null \
+        || true
+      ;;
+    dnf) sudo dnf install -y -q python3-pip 2>/dev/null || true ;;
+    yum) sudo yum install -y -q python3-pip 2>/dev/null || true ;;
   esac
 fi
-# After install, re-check
-if ! python3 -m pip --version &>/dev/null; then
-  error "pip3 still not available after install attempt. Run: sudo apt-get install -y python3-pip"
+
+if ! python3 -m pip --version &>/dev/null 2>&1; then
+  info "Package manager pip install failed — bootstrapping via get-pip.py..."
+  # get-pip.py works for any Python 3.8+ including unreleased versions
+  TMP_GETPIP="$(mktemp /tmp/get-pip-XXXXXX.py)"
+  if curl -fsSL "https://bootstrap.pypa.io/get-pip.py" -o "$TMP_GETPIP" 2>/dev/null; then
+    python3 "$TMP_GETPIP" --quiet 2>/dev/null || true
+  fi
+  rm -f "$TMP_GETPIP"
 fi
-PIP3_BIN="$(python3 -m pip --version | awk '{print $NF}')"
-success "pip3 found (python3 -m pip) — $(python3 -m pip --version | awk '{print $1,$2}')"
+
+if ! python3 -m pip --version &>/dev/null 2>&1; then
+  error "pip could not be installed. Try manually:\n  python3 -m ensurepip --upgrade\n  or: curl -fsSL https://bootstrap.pypa.io/get-pip.py | python3 -"
+fi
+success "pip found — $(python3 -m pip --version | awk '{print $1,$2}')"
 
 # ── python3-venv ──────────────────────────────────────────────────────────────
 # Test venv availability before trying to use it
