@@ -38,7 +38,7 @@ python-multipart==0.0.9
 pypdf==4.0.0
 
 # Numpy (for FAISS vector ops)
-numpy==1.26.4
+numpy==2.5.0
 
 # Motor (MongoDB async — for AI service DB access)
 motor==3.4.0
