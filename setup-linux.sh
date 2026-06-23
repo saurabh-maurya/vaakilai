@@ -141,6 +141,38 @@ trap 'rm -rf "$PIP_TMP" 2>/dev/null || true' EXIT
 FREE_TMP="$(_free_mb "$PIP_TMP")"
 success "Disk space OK — ${FREE_ROOT} MB free on project filesystem  |  ${FREE_TMP} MB free on build temp"
 
+# ── Swap space ────────────────────────────────────────────────────────────────
+# Rust compilation (pydantic-core, cryptography) needs 2-4 GB of memory.
+# On EC2 instances with <=2 GB RAM and no swap the OOM killer silently kills
+# the compiler and pip hangs indefinitely. Add a 4 GB swapfile if swap is low.
+SWAP_TOTAL_KB="$(awk '/SwapTotal/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+SWAP_TOTAL_MB=$(( SWAP_TOTAL_KB / 1024 ))
+SWAPFILE=/swapfile
+
+if [ "$SWAP_TOTAL_MB" -lt 2048 ]; then
+  if [ -f "$SWAPFILE" ]; then
+    info "Activating existing swapfile $SWAPFILE ..."
+    sudo swapon "$SWAPFILE" 2>/dev/null || true
+  else
+    info "No swap detected (${SWAP_TOTAL_MB} MB) — creating 4 GB swapfile at $SWAPFILE ..."
+    if sudo fallocate -l 4G "$SWAPFILE" 2>/dev/null || sudo dd if=/dev/zero of="$SWAPFILE" bs=1M count=4096 status=none; then
+      sudo chmod 600 "$SWAPFILE"
+      sudo mkswap "$SWAPFILE" >/dev/null
+      sudo swapon "$SWAPFILE"
+      # Persist across reboots
+      grep -q "$SWAPFILE" /etc/fstab 2>/dev/null \
+        || echo "$SWAPFILE none swap sw 0 0" | sudo tee -a /etc/fstab >/dev/null
+      success "4 GB swap enabled — Rust/C compilation will not OOM-kill"
+    else
+      warn "Could not create swapfile — compilation may hang on low-RAM instances"
+    fi
+  fi
+  NEW_SWAP_KB="$(awk '/SwapTotal/ {print $2}' /proc/meminfo 2>/dev/null || echo 0)"
+  success "Swap: $(( NEW_SWAP_KB / 1024 )) MB available"
+else
+  success "Swap OK — ${SWAP_TOTAL_MB} MB already available"
+fi
+
 # ── Detect package manager ─────────────────────────────────────────────────────
 step "1/7  System packages"
 
