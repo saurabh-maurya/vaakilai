@@ -99,24 +99,28 @@ fi
 success "Python $(python3 --version | awk '{print $2}') OK"
 
 # ── pip3 ──────────────────────────────────────────────────────────────────────
+# Use `python3 -c "import pip"` to detect pip — this checks the module is
+# importable regardless of exit code, which changed in Python 3.14 / pip 25.x
+# where `python3 -m pip --version` may exit non-zero even when pip is present.
+#
 # Install order:
-#   1. ensurepip  — stdlib module, works for any Python version (no network needed)
-#   2. apt/dnf/yum python3-pip  — works for distro-packaged Python
-#   3. get-pip.py bootstrap     — always works, fetches from pypa.io (fallback)
-if ! python3 -m pip --version &>/dev/null 2>&1; then
+#   1. ensurepip  — stdlib, works for any CPython version (no network needed)
+#   2. apt/dnf/yum python3-pip
+#   3. get-pip.py bootstrap from pypa.io (always works as last resort)
+
+pip_available() {
+  python3 -c "import pip" &>/dev/null 2>&1
+}
+
+if ! pip_available; then
   info "pip not found — trying ensurepip (built-in)..."
   python3 -m ensurepip --upgrade 2>/dev/null || true
-  # ensurepip installs to user site on some systems; also upgrade to latest
-  if python3 -m pip --version &>/dev/null 2>&1; then
-    python3 -m pip install --upgrade pip -q 2>/dev/null || true
-  fi
 fi
 
-if ! python3 -m pip --version &>/dev/null 2>&1; then
-  info "ensurepip not available — trying package manager..."
+if ! pip_available; then
+  info "ensurepip did not install pip — trying package manager..."
   case "$PKG_MGR" in
     apt)
-      # Try versioned package first (e.g. python3.14-pip doesn't exist yet for new Pythons)
       PY_VER="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
       sudo apt-get install -y -qq "python${PY_VER}-pip" 2>/dev/null \
         || sudo apt-get install -y -qq python3-pip 2>/dev/null \
@@ -127,9 +131,8 @@ if ! python3 -m pip --version &>/dev/null 2>&1; then
   esac
 fi
 
-if ! python3 -m pip --version &>/dev/null 2>&1; then
-  info "Package manager pip install failed — bootstrapping via get-pip.py..."
-  # get-pip.py works for any Python 3.8+ including unreleased versions
+if ! pip_available; then
+  info "Package manager install failed — bootstrapping via get-pip.py..."
   TMP_GETPIP="$(mktemp /tmp/get-pip-XXXXXX.py)"
   if curl -fsSL "https://bootstrap.pypa.io/get-pip.py" -o "$TMP_GETPIP" 2>/dev/null; then
     python3 "$TMP_GETPIP" --quiet 2>/dev/null || true
@@ -137,21 +140,29 @@ if ! python3 -m pip --version &>/dev/null 2>&1; then
   rm -f "$TMP_GETPIP"
 fi
 
-if ! python3 -m pip --version &>/dev/null 2>&1; then
+if ! pip_available; then
   error "pip could not be installed. Try manually:\n  python3 -m ensurepip --upgrade\n  or: curl -fsSL https://bootstrap.pypa.io/get-pip.py | python3 -"
 fi
-success "pip found — $(python3 -m pip --version | awk '{print $1,$2}')"
+PIP_VER="$(python3 -m pip --version 2>/dev/null | awk '{print $1,$2}' || echo "pip (version unknown)")"
+success "pip found — $PIP_VER"
 
 # ── python3-venv ──────────────────────────────────────────────────────────────
-# Test venv availability before trying to use it
-if ! python3 -m venv --help &>/dev/null; then
+# Use module import check — `python3 -m venv --help` can exit non-zero on
+# Python 3.14 even when venv is available.
+if ! python3 -c "import venv" &>/dev/null 2>&1; then
   info "python3-venv not found — installing..."
   case "$PKG_MGR" in
-    apt) sudo apt-get install -y -qq python3-venv python3-dev >/dev/null ;;
-    dnf) sudo dnf install -y -q python3-devel >/dev/null ;;
-    yum) sudo yum install -y -q python3-devel >/dev/null ;;
+    apt)
+      PY_VER="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
+      sudo apt-get install -y -qq "python${PY_VER}-venv" 2>/dev/null \
+        || sudo apt-get install -y -qq python3-venv python3-dev 2>/dev/null \
+        || true
+      ;;
+    dnf) sudo dnf install -y -q python3-devel 2>/dev/null || true ;;
+    yum) sudo yum install -y -q python3-devel 2>/dev/null || true ;;
   esac
 fi
+python3 -c "import venv" &>/dev/null 2>&1 || error "python3-venv unavailable. Try: sudo apt-get install -y python3.14-venv"
 success "python3-venv available"
 
 # ── curl ──────────────────────────────────────────────────────────────────────
