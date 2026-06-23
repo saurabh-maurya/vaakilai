@@ -180,86 +180,102 @@ if [ "$PKG_MGR" = "apt" ]; then
 fi
 
 # ── Python 3 ──────────────────────────────────────────────────────────────────
-if ! command -v python3 &>/dev/null; then
-  install_pkg python3
-fi
-PYTHON_BIN="$(command -v python3)"
-success "python3 found: $PYTHON_BIN"
-
-# Verify Python >= 3.10
-PY_MINOR=$(python3 -c "import sys; print(sys.version_info.minor)")
-PY_MAJOR=$(python3 -c "import sys; print(sys.version_info.major)")
-if [ "$PY_MAJOR" -lt 3 ] || { [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 10 ]; }; then
-  error "Python 3.10+ is required. Found: $(python3 --version). Install a newer Python."
-fi
-success "Python $(python3 --version | awk '{print $2}') OK"
-
-# ── pip3 ──────────────────────────────────────────────────────────────────────
-# Use `python3 -c "import pip"` to detect pip — this checks the module is
-# importable regardless of exit code, which changed in Python 3.14 / pip 25.x
-# where `python3 -m pip --version` may exit non-zero even when pip is present.
+# ── Python version selection ──────────────────────────────────────────────────
+# Python 3.13+ has no pre-built binary wheels for pydantic-core, Pillow,
+# cryptography, argon2-cffi, etc. — pip falls back to Rust/C compilation which
+# takes 20-40 min and often OOM-kills on small EC2 instances.
 #
-# Install order:
-#   1. ensurepip  — stdlib, works for any CPython version (no network needed)
-#   2. apt/dnf/yum python3-pip
-#   3. get-pip.py bootstrap from pypa.io (always works as last resort)
+# Strategy: prefer Python 3.12 (full wheel support for all our deps), fall
+# back to 3.11, then accept 3.13+ only if nothing better is available.
+# Install python3.12 via deadsnakes PPA if needed (Ubuntu only).
 
-pip_available() {
-  python3 -c "import pip" &>/dev/null 2>&1
-}
+_py_minor() { "$1" -c "import sys; print(sys.version_info.minor)" 2>/dev/null || echo 0; }
+_py_major() { "$1" -c "import sys; print(sys.version_info.major)" 2>/dev/null || echo 0; }
 
-if ! pip_available; then
-  info "pip not found — trying ensurepip (built-in)..."
-  python3 -m ensurepip --upgrade 2>/dev/null || true
-fi
-
-if ! pip_available; then
-  info "ensurepip did not install pip — trying package manager..."
-  case "$PKG_MGR" in
-    apt)
-      PY_VER="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-      sudo apt-get install -y -qq "python${PY_VER}-pip" 2>/dev/null \
-        || sudo apt-get install -y -qq python3-pip 2>/dev/null \
-        || true
-      ;;
-    dnf) sudo dnf install -y -q python3-pip 2>/dev/null || true ;;
-    yum) sudo yum install -y -q python3-pip 2>/dev/null || true ;;
-  esac
-fi
-
-if ! pip_available; then
-  info "Package manager install failed — bootstrapping via get-pip.py..."
-  TMP_GETPIP="$(mktemp /tmp/get-pip-XXXXXX.py)"
-  if curl -fsSL "https://bootstrap.pypa.io/get-pip.py" -o "$TMP_GETPIP" 2>/dev/null; then
-    python3 "$TMP_GETPIP" --quiet 2>/dev/null || true
+# Score: prefer 3.12 > 3.11 > 3.13 > 3.10 > other
+PYTHON_BIN=""
+for candidate in python3.12 python3.11 python3.13 python3.10 python3; do
+  if command -v "$candidate" &>/dev/null; then
+    _maj="$(_py_major "$candidate")"
+    _min="$(_py_minor "$candidate")"
+    if [ "$_maj" -eq 3 ] && [ "$_min" -ge 10 ]; then
+      PYTHON_BIN="$(command -v "$candidate")"
+      break
+    fi
   fi
+done
+
+# If Python 3.12 not found and we're on apt, install it via deadsnakes
+if [ -z "$PYTHON_BIN" ] || [ "$(_py_minor "$PYTHON_BIN")" -gt 12 ]; then
+  if [ "$PKG_MGR" = "apt" ] && ! command -v python3.12 &>/dev/null; then
+    info "Python 3.12 not found — installing via deadsnakes PPA (avoids Rust/C source builds)..."
+    sudo apt-get install -y -qq software-properties-common 2>/dev/null || true
+    sudo add-apt-repository -y ppa:deadsnakes/ppa 2>/dev/null || true
+    sudo apt-get update -qq >/dev/null
+    sudo apt-get install -y -qq python3.12 python3.12-venv python3.12-dev 2>/dev/null || true
+  fi
+  if command -v python3.12 &>/dev/null; then
+    PYTHON_BIN="$(command -v python3.12)"
+  fi
+fi
+
+# Final fallback: use whatever python3 we have
+if [ -z "$PYTHON_BIN" ]; then
+  PYTHON_BIN="$(command -v python3 || true)"
+fi
+
+[ -n "$PYTHON_BIN" ] || error "No Python 3.10+ found. Install python3.12: sudo apt-get install python3.12"
+
+PY_VER_STR="$("$PYTHON_BIN" --version 2>&1 | awk '{print $2}')"
+PY_MAJOR="$(_py_major "$PYTHON_BIN")"
+PY_MINOR="$(_py_minor "$PYTHON_BIN")"
+
+if [ "$PY_MAJOR" -lt 3 ] || [ "$PY_MINOR" -lt 10 ]; then
+  error "Python 3.10+ required. Found: $PY_VER_STR"
+fi
+
+if [ "$PY_MINOR" -ge 13 ]; then
+  warn "Using Python $PY_VER_STR — pre-built wheels unavailable for some packages"
+  warn "Source compilation (Rust/C) will run; this may take 20-40 min on first install"
+else
+  success "Python $PY_VER_STR — pre-built wheels available for all packages"
+fi
+success "Using: $PYTHON_BIN"
+
+# ── pip ───────────────────────────────────────────────────────────────────────
+pip_available() { "$PYTHON_BIN" -c "import pip" &>/dev/null 2>&1; }
+
+if ! pip_available; then
+  info "pip not found — trying ensurepip..."
+  "$PYTHON_BIN" -m ensurepip --upgrade 2>/dev/null || true
+fi
+
+if ! pip_available && [ "$PKG_MGR" = "apt" ]; then
+  info "Installing pip via apt..."
+  sudo apt-get install -y -qq "python${PY_MAJOR}.${PY_MINOR}-pip" 2>/dev/null \
+    || sudo apt-get install -y -qq python3-pip 2>/dev/null || true
+fi
+
+if ! pip_available; then
+  info "Bootstrapping pip via get-pip.py..."
+  TMP_GETPIP="$(mktemp "$PIP_TMP/get-pip-XXXXXX.py")"
+  curl -fsSL "https://bootstrap.pypa.io/get-pip.py" -o "$TMP_GETPIP" 2>/dev/null \
+    && "$PYTHON_BIN" "$TMP_GETPIP" --quiet 2>/dev/null || true
   rm -f "$TMP_GETPIP"
 fi
 
-if ! pip_available; then
-  error "pip could not be installed. Try manually:\n  python3 -m ensurepip --upgrade\n  or: curl -fsSL https://bootstrap.pypa.io/get-pip.py | python3 -"
-fi
-PIP_VER="$(python3 -m pip --version 2>/dev/null | awk '{print $1,$2}' || echo "pip (version unknown)")"
-success "pip found — $PIP_VER"
+pip_available || error "pip could not be installed for $PYTHON_BIN"
+success "pip ready for $PYTHON_BIN"
 
-# ── python3-venv ──────────────────────────────────────────────────────────────
-# Use module import check — `python3 -m venv --help` can exit non-zero on
-# Python 3.14 even when venv is available.
-if ! python3 -c "import venv" &>/dev/null 2>&1; then
-  info "python3-venv not found — installing..."
-  case "$PKG_MGR" in
-    apt)
-      PY_VER="$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')"
-      sudo apt-get install -y -qq "python${PY_VER}-venv" 2>/dev/null \
-        || sudo apt-get install -y -qq python3-venv python3-dev 2>/dev/null \
-        || true
-      ;;
-    dnf) sudo dnf install -y -q python3-devel 2>/dev/null || true ;;
-    yum) sudo yum install -y -q python3-devel 2>/dev/null || true ;;
-  esac
+# ── venv ──────────────────────────────────────────────────────────────────────
+if ! "$PYTHON_BIN" -c "import venv" &>/dev/null 2>&1; then
+  info "python-venv not found — installing..."
+  [ "$PKG_MGR" = "apt" ] && \
+    sudo apt-get install -y -qq "python${PY_MAJOR}.${PY_MINOR}-venv" 2>/dev/null || true
 fi
-python3 -c "import venv" &>/dev/null 2>&1 || error "python3-venv unavailable. Try: sudo apt-get install -y python3.14-venv"
-success "python3-venv available"
+"$PYTHON_BIN" -c "import venv" &>/dev/null 2>&1 \
+  || error "python-venv unavailable for $PYTHON_BIN. Try: sudo apt-get install python3.12-venv"
+success "venv available"
 
 # ── curl ──────────────────────────────────────────────────────────────────────
 if ! command -v curl &>/dev/null; then
@@ -491,12 +507,12 @@ step "4/7  Backend — Python dependencies"
 
 BACKEND_VENV="$BACKEND/venv"
 if [ ! -f "$BACKEND_VENV/bin/python" ]; then
-  info "Creating backend virtualenv at $BACKEND_VENV ..."
-  python3 -m venv "$BACKEND_VENV"
+  info "Creating backend virtualenv ($("$PYTHON_BIN" --version)) at $BACKEND_VENV ..."
+  "$PYTHON_BIN" -m venv "$BACKEND_VENV"
 fi
 
 info "Installing backend pip dependencies..."
-info "(Pillow + pydantic-core compile from source on Python 3.14 — this can take 5-10 min)"
+[ "$PY_MINOR" -ge 13 ] && info "(Source compilation required on Python 3.1${PY_MINOR} — may take 20-40 min)"
 "$BACKEND_VENV/bin/pip" install --upgrade pip --no-cache-dir --disable-pip-version-check
 if ! "$BACKEND_VENV/bin/pip" install -r "$BACKEND/requirements.txt" \
      --no-cache-dir --disable-pip-version-check; then
@@ -509,12 +525,12 @@ step "5/7  AI Service — Python dependencies"
 
 AI_VENV="$AI/venv"
 if [ ! -f "$AI_VENV/bin/python" ]; then
-  info "Creating ai_service virtualenv at $AI_VENV ..."
-  python3 -m venv "$AI_VENV"
+  info "Creating ai_service virtualenv ($("$PYTHON_BIN" --version)) at $AI_VENV ..."
+  "$PYTHON_BIN" -m venv "$AI_VENV"
 fi
 
 info "Installing AI service pip dependencies (LangGraph, Anthropic SDK)..."
-info "(pydantic-core compiles from source on Python 3.14 — this can take 5-10 min)"
+[ "$PY_MINOR" -ge 13 ] && info "(Source compilation required on Python 3.1${PY_MINOR} — may take 20-40 min)"
 "$AI_VENV/bin/pip" install --upgrade pip --no-cache-dir --disable-pip-version-check
 if ! "$AI_VENV/bin/pip" install -r "$AI/requirements.txt" \
      --no-cache-dir --disable-pip-version-check; then
