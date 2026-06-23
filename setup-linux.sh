@@ -49,6 +49,73 @@ echo "  ║     Linux / Amazon EC2 Setup         ║"
 echo "  ╚══════════════════════════════════════╝"
 echo -e "${RESET}"
 
+# ── Preflight: disk space check ───────────────────────────────────────────────
+# Minimum free space required (in MB):
+#   ~800 MB  Python deps (backend + ai_service)
+#   ~400 MB  Node.js + npm packages
+#   ~500 MB  pip/npm temp/build files
+#   ~300 MB  headroom
+REQUIRED_MB=2048
+
+_free_mb() {
+  # Returns free MB on the filesystem containing $1 (defaults to current dir)
+  local target="${1:-.}"
+  df -BM "$target" 2>/dev/null | awk 'NR==2 {gsub(/M/,"",$4); print $4}' || echo 0
+}
+
+_free_home_mb() { _free_mb "$HOME"; }
+_free_root_mb() { _free_mb "$ROOT"; }
+
+FREE_ROOT="$(_free_root_mb)"
+FREE_HOME="$(_free_home_mb)"
+
+if [ "${FREE_ROOT:-0}" -lt "$REQUIRED_MB" ] 2>/dev/null; then
+  echo ""
+  echo -e "${RED}╔══════════════════════════════════════════════════════════════╗"
+  echo -e "║  DISK SPACE TOO LOW — setup cannot continue safely           ║"
+  echo -e "╚══════════════════════════════════════════════════════════════╝${RESET}"
+  echo ""
+  echo -e "  Free on $ROOT : ${RED}${FREE_ROOT} MB${RESET}  (need at least ${REQUIRED_MB} MB)"
+  echo ""
+  echo -e "  ${BOLD}Free up space first:${RESET}"
+  echo -e "    # Remove node_modules (reinstalled by this script)"
+  echo -e "    rm -rf $FRONTEND/node_modules"
+  echo -e ""
+  echo -e "    # Remove Python venvs (recreated by this script)"
+  echo -e "    rm -rf $BACKEND/venv $AI/venv"
+  echo -e ""
+  echo -e "    # Clear pip cache"
+  echo -e "    rm -rf ~/.cache/pip"
+  echo -e ""
+  echo -e "    # Clear npm cache"
+  echo -e "    npm cache clean --force 2>/dev/null || true"
+  echo -e ""
+  echo -e "    # Remove old apt packages"
+  echo -e "    sudo apt-get autoremove -y && sudo apt-get clean"
+  echo -e ""
+  echo -e "    # Check what's eating space"
+  echo -e "    du -sh /* 2>/dev/null | sort -h | tail -20"
+  echo -e ""
+  echo -e "  ${BOLD}Or expand your EBS volume in the AWS console, then:${RESET}"
+  echo -e "    sudo growpart /dev/xvda 1 && sudo resize2fs /dev/xvda1"
+  echo -e "    # (adjust device name — check with: lsblk)"
+  echo ""
+  exit 1
+fi
+
+# Auto-clean when space is low (< 512 MB on HOME) — node_modules + caches can
+# free several hundred MB; everything is recreated by subsequent steps.
+if [ "${FREE_HOME:-0}" -lt 512 ] 2>/dev/null; then
+  warn "Low space on HOME ($HOME): ${FREE_HOME} MB free — auto-cleaning to avoid build failures"
+  [ -d "$FRONTEND/node_modules" ] && { info "Removing $FRONTEND/node_modules ..."; rm -rf "$FRONTEND/node_modules"; }
+  [ -d "$BACKEND/venv" ]          && { info "Removing $BACKEND/venv ...";          rm -rf "$BACKEND/venv"; }
+  [ -d "$AI/venv" ]               && { info "Removing $AI/venv ...";               rm -rf "$AI/venv"; }
+  rm -rf ~/.cache/pip 2>/dev/null || true
+  npm cache clean --force 2>/dev/null || true
+fi
+
+success "Disk space OK — ${FREE_ROOT} MB free on project filesystem"
+
 # ── Detect package manager ─────────────────────────────────────────────────────
 step "1/7  System packages"
 
@@ -366,8 +433,11 @@ if [ ! -f "$BACKEND_VENV/bin/python" ]; then
 fi
 
 info "Installing backend pip dependencies (this may take a few minutes)..."
-"$BACKEND_VENV/bin/pip" install --upgrade pip -q --disable-pip-version-check
-"$BACKEND_VENV/bin/pip" install -r "$BACKEND/requirements.txt" -q --disable-pip-version-check
+"$BACKEND_VENV/bin/pip" install --upgrade pip -q --no-cache-dir --disable-pip-version-check
+if ! "$BACKEND_VENV/bin/pip" install -r "$BACKEND/requirements.txt" -q \
+     --no-cache-dir --disable-pip-version-check; then
+  error "Backend pip install failed (check disk space: df -h)"
+fi
 success "Backend Python dependencies installed"
 
 # ── 5. AI Service Python venv ─────────────────────────────────────────────────
@@ -380,16 +450,27 @@ if [ ! -f "$AI_VENV/bin/python" ]; then
 fi
 
 info "Installing AI service pip dependencies (LangGraph, Anthropic SDK — may take a few minutes)..."
-"$AI_VENV/bin/pip" install --upgrade pip -q --disable-pip-version-check
-"$AI_VENV/bin/pip" install -r "$AI/requirements.txt" -q --disable-pip-version-check
+"$AI_VENV/bin/pip" install --upgrade pip -q --no-cache-dir --disable-pip-version-check
+if ! "$AI_VENV/bin/pip" install -r "$AI/requirements.txt" -q \
+     --no-cache-dir --disable-pip-version-check; then
+  error "AI service pip install failed (check disk space: df -h)"
+fi
 success "AI service Python dependencies installed"
 
 # ── 6. Frontend npm install ────────────────────────────────────────────────────
 step "6/7  Frontend — Node.js dependencies"
 
 cd "$FRONTEND"
+# Remove stale node_modules that cause ENOTEMPTY rename errors on re-runs
+if [ -d node_modules ]; then
+  info "Removing stale node_modules before fresh install..."
+  rm -rf node_modules
+fi
+rm -f package-lock.json
 info "Running npm install..."
-npm install --prefer-offline 2>/dev/null || npm install
+if ! npm install; then
+  error "npm install failed (check disk space: df -h)"
+fi
 success "Frontend Node.js dependencies installed"
 cd "$ROOT"
 
