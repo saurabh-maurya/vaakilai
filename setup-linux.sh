@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Re-exec under bash if called with sh/dash (nvm and echo -e require bash)
+if [ -z "${BASH_VERSION:-}" ]; then
+  exec bash "$0" "$@"
+fi
 # =============================================================================
 # VakilAI — Linux Setup Script  (Amazon EC2 Ubuntu / Ubuntu 22.04+)
 # =============================================================================
@@ -232,16 +236,17 @@ else
   nvm alias default "$NODE_REQUIRED"
   nvm use "$NODE_REQUIRED"
 
-  # nvm use updates PATH via shell functions, but those don't always propagate
-  # in non-interactive scripts. Explicitly find and prepend the node bin dir.
-  _node_bin="$(nvm which "$NODE_REQUIRED" 2>/dev/null || true)"
-  if [ -z "$_node_bin" ]; then
-    # Fallback: find the highest-versioned v20.x directory nvm created
-    _node_bin="$(ls -d "$NVM_DIR/versions/node/v${NODE_REQUIRED}"*/bin/node 2>/dev/null \
-                 | sort -V | tail -1 || true)"
-  fi
-  if [ -n "$_node_bin" ] && [ -f "$_node_bin" ]; then
-    export PATH="$(dirname "$_node_bin"):$PATH"
+  # nvm's PATH changes via shell functions don't always propagate in
+  # non-interactive bash. Use find to locate the installed node bin dir
+  # and prepend it to PATH explicitly.
+  _node_dir="$(find "$NVM_DIR/versions/node" -maxdepth 1 \
+               -name "v${NODE_REQUIRED}*" -type d 2>/dev/null \
+               | sort -V | tail -1 || true)"
+  if [ -n "$_node_dir" ] && [ -x "$_node_dir/bin/node" ]; then
+    export PATH="$_node_dir/bin:$PATH"
+    hash -r 2>/dev/null || true   # clear bash's command-lookup cache
+  else
+    warn "Could not locate node bin dir under $NVM_DIR/versions/node — PATH may be incomplete"
   fi
 
   # Add nvm to shell rc files so it persists after reboot

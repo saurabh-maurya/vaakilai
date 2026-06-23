@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Re-exec under bash if called with sh/dash (nvm and echo -e require bash)
+if [ -z "${BASH_VERSION:-}" ]; then
+  exec bash "$0" "$@"
+fi
 # =============================================================================
 # VakilAI — Linux Startup Script  (Amazon EC2 Ubuntu / Ubuntu 22.04+)
 # =============================================================================
