@@ -68,6 +68,15 @@ _free_root_mb() { _free_mb "$ROOT"; }
 
 FREE_ROOT="$(_free_root_mb)"
 FREE_HOME="$(_free_home_mb)"
+FREE_TMP="$(_free_mb /tmp)"
+
+# Warn early if /tmp (tmpfs) is critically low — pip Rust builds need 300-500 MB
+# of temp space; this check runs BEFORE we redirect TMPDIR below.
+if [ "${FREE_TMP:-0}" -lt 200 ] 2>/dev/null; then
+  warn "/tmp only has ${FREE_TMP} MB free — clearing to avoid build failures"
+  # Safe to remove pip/npm debris in /tmp; nothing persistent lives here
+  rm -rf /tmp/pip-* /tmp/npm-* /tmp/rust* 2>/dev/null || true
+fi
 
 if [ "${FREE_ROOT:-0}" -lt "$REQUIRED_MB" ] 2>/dev/null; then
   echo ""
@@ -114,7 +123,23 @@ if [ "${FREE_HOME:-0}" -lt 512 ] 2>/dev/null; then
   npm cache clean --force 2>/dev/null || true
 fi
 
-success "Disk space OK — ${FREE_ROOT} MB free on project filesystem"
+# ── Redirect pip build/temp dirs off tmpfs ────────────────────────────────────
+# /tmp is a tmpfs (RAM-backed) — typically 256-512 MB. Packages like
+# pydantic-core compile from source via Rust/maturin on Python 3.14+ and need
+# several hundred MB of build temp space, exhausting the small tmpfs quota.
+# Redirect TMPDIR and pip's build dir to the main filesystem instead.
+PIP_TMP="$ROOT/.pip-tmp"
+mkdir -p "$PIP_TMP"
+export TMPDIR="$PIP_TMP"
+export PIP_CACHE_DIR="$PIP_TMP/pip-cache"
+export PIP_BUILD="$PIP_TMP/pip-build"
+info "pip build temp redirected to $PIP_TMP (avoids /tmp quota errors)"
+
+# Ensure cleanup on exit (success or failure)
+trap 'rm -rf "$PIP_TMP" 2>/dev/null || true' EXIT
+
+FREE_TMP="$(_free_mb "$PIP_TMP")"
+success "Disk space OK — ${FREE_ROOT} MB free on project filesystem  |  ${FREE_TMP} MB free on build temp"
 
 # ── Detect package manager ─────────────────────────────────────────────────────
 step "1/7  System packages"
