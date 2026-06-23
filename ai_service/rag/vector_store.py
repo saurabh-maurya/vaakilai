@@ -9,7 +9,6 @@ import asyncio
 import json
 import logging
 import os
-import pickle
 from typing import List, Optional
 
 import numpy as np
@@ -35,7 +34,7 @@ class CaseVectorStore:
 
     def __init__(self):
         self.index_path = settings.faiss_index_path
-        self.meta_path = f"{self.index_path}.meta.pkl"
+        self.meta_path = f"{self.index_path}.meta.json"
         self.index: Optional[object] = None
         self.metadata: List[dict] = []  # parallel list to FAISS vectors
         self._lock = asyncio.Lock()
@@ -58,8 +57,8 @@ class CaseVectorStore:
         os.makedirs(os.path.dirname(self.index_path) or ".", exist_ok=True)
         if os.path.exists(f"{self.index_path}.index"):
             self.index = faiss.read_index(f"{self.index_path}.index")
-            with open(self.meta_path, "rb") as f:
-                self.metadata = pickle.load(f)
+            with open(self.meta_path, "r", encoding="utf-8") as f:
+                self.metadata = json.load(f)
             logger.info(f"Loaded FAISS index with {len(self.metadata)} cases")
         else:
             dim = self._get_embedding_provider().dimension()
@@ -72,8 +71,8 @@ class CaseVectorStore:
             return
         os.makedirs(os.path.dirname(self.index_path) or ".", exist_ok=True)
         faiss.write_index(self.index, f"{self.index_path}.index")
-        with open(self.meta_path, "wb") as f:
-            pickle.dump(self.metadata, f)
+        with open(self.meta_path, "w", encoding="utf-8") as f:
+            json.dump(self.metadata, f)
 
     async def add_cases(self, cases: List[dict]) -> int:
         """Embed and add cases to the index. Returns count added."""

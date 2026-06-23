@@ -2,10 +2,12 @@ FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install ClamAV for malware scanning, then clean up apt cache in the same layer
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    clamav \
-    clamav-daemon \
+# Patch OS-level CVEs, install ClamAV, then clean up in the same layer
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends \
+        clamav \
+        clamav-daemon \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

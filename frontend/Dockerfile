@@ -14,6 +14,9 @@ RUN npm run build
 FROM base AS runner
 ENV NODE_ENV=production
 
+# Patch OS-level CVEs
+RUN apk upgrade --no-cache
+
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nextjs
 

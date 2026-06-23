@@ -56,7 +56,7 @@ def _verify_twilio_signature(request_url: str, post_params: dict, signature: str
     computed = hmac.new(
         settings.twilio_auth_token.encode("utf-8"),
         s.encode("utf-8"),
-        hashlib.sha1,
+        hashlib.sha1,  # nosec B324 — HMAC-SHA1 is mandated by Twilio's webhook signature protocol
     ).digest()
     import base64
     return base64.b64encode(computed).decode() == signature

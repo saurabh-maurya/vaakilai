@@ -63,7 +63,7 @@ async def ai_extract_case_metadata(full_text: str, provider) -> dict:
 def build_case_from_pdf(pdf_bytes: bytes, filename: str, uploader_id: str) -> dict:
     """Build a case dict from PDF bytes (metadata filled by AI separately)."""
     text = extract_text_from_pdf(pdf_bytes)
-    case_id = "pdf_" + hashlib.md5(pdf_bytes).hexdigest()[:12]
+    case_id = "pdf_" + hashlib.sha256(pdf_bytes).hexdigest()[:12]
     title = _guess_title_from_text(text) or filename.replace(".pdf", "")
     return {
         "id": case_id,

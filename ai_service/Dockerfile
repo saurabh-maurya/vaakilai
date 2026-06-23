@@ -2,6 +2,12 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Patch OS-level CVEs before freezing the layer
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
 # Install deps as root, then drop privileges
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
