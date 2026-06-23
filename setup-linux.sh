@@ -267,15 +267,53 @@ if ! command -v curl &>/dev/null; then
 fi
 success "curl found: $(command -v curl)"
 
-# ── Build tools (needed for some pip packages: cryptography, argon2-cffi) ─────
+# ── Build tools & C library headers ──────────────────────────────────────────
+# Python 3.13+ has no pre-built wheels for several packages (Pillow, pydantic-
+# core, cryptography, argon2-cffi). They compile from source and need these
+# system headers/libraries:
+#
+#   build-essential   gcc, make (required for any C extension)
+#   libssl-dev        cryptography, PyJWT
+#   libffi-dev        cffi, cryptography
+#   libjpeg-dev       Pillow — JPEG support (mandatory)
+#   zlib1g-dev        Pillow — PNG/zip; also pydantic-core
+#   libpng-dev        Pillow — PNG
+#   libwebp-dev       Pillow — WebP
+#   libtiff-dev       Pillow — TIFF
+#   libfreetype6-dev  Pillow — font rendering
+#   libopenjp2-7-dev  Pillow — JPEG 2000
+#   pkg-config        lets pip find the above libs via pkg-config
+#   rust/cargo        pydantic-core compiles via maturin (Rust)
 if [ "$PKG_MGR" = "apt" ]; then
-  for pkg in build-essential libssl-dev libffi-dev; do
-    if ! dpkg -s "$pkg" &>/dev/null 2>&1; then
-      info "Installing build dep: $pkg"
-      sudo apt-get install -y -qq "$pkg" >/dev/null
-    fi
+  BUILD_PKGS=(
+    build-essential pkg-config
+    libssl-dev libffi-dev
+    libjpeg-dev zlib1g-dev libpng-dev libwebp-dev
+    libtiff-dev libfreetype6-dev libopenjp2-7-dev
+  )
+  MISSING=()
+  for pkg in "${BUILD_PKGS[@]}"; do
+    dpkg -s "$pkg" &>/dev/null 2>&1 || MISSING+=("$pkg")
   done
-  success "Build tools present"
+  if [ ${#MISSING[@]} -gt 0 ]; then
+    info "Installing build/image libs: ${MISSING[*]}"
+    sudo apt-get install -y -qq "${MISSING[@]}" >/dev/null
+  fi
+  success "Build tools & image libraries present"
+fi
+
+# ── Rust toolchain (needed by pydantic-core / maturin on Python 3.13+) ────────
+# Only install if cargo is missing — rustup installs to ~/.cargo and is fast.
+if ! command -v cargo &>/dev/null; then
+  info "Rust not found — installing via rustup (needed to build pydantic-core)..."
+  curl -fsSL https://sh.rustup.rs | sh -s -- -y --profile minimal --quiet
+  # shellcheck source=/dev/null
+  source "$HOME/.cargo/env" 2>/dev/null || export PATH="$HOME/.cargo/bin:$PATH"
+  success "Rust $(rustc --version 2>/dev/null || echo '(installed)') ready"
+else
+  # Ensure cargo is on PATH for the rest of the script
+  [ -f "$HOME/.cargo/env" ] && source "$HOME/.cargo/env" 2>/dev/null || true
+  success "Rust already installed: $(rustc --version 2>/dev/null)"
 fi
 
 # ── Node.js 20 via nvm ────────────────────────────────────────────────────────
