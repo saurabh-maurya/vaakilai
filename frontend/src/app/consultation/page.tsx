@@ -149,7 +149,7 @@ export default function ConsultationPage() {
               </div>
               <h2 className="text-lg font-bold mb-2" style={{ color: "var(--vk-text)" }}>Request submitted!</h2>
               <p className="text-sm mb-6" style={{ color: "var(--vk-text-muted)" }}>
-                We've matched your request to lawyers in our network. You'll hear from a verified advocate within{" "}
+                We&apos;ve matched your request to lawyers in our network. You&apos;ll hear from a verified advocate within{" "}
                 {consultForm.urgency === "urgent" ? "2–4 hours" : consultForm.urgency === "soon" ? "24 hours" : "2–3 days"}.
               </p>
               <div className="flex justify-center gap-3">

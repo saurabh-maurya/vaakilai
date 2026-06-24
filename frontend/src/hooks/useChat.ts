@@ -146,7 +146,7 @@ export function useChat() {
         setIsStreaming(false);
       }
     },
-    [isStreaming, messages, jurisdiction, practiceArea]
+    [isStreaming, jurisdiction, practiceArea]
   );
 
   const clearMessages = useCallback(() => {
