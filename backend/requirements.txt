@@ -9,6 +9,7 @@ cryptography==43.0.1
 passlib[argon2]==1.7.4
 argon2-cffi==23.1.0
 python-multipart==0.0.9
+email-validator>=2.1.0
 httpx==0.27.0
 boto3==1.34.107
 razorpay==1.4.1

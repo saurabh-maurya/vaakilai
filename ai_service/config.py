@@ -1,5 +1,5 @@
 from pydantic_settings import BaseSettings
-from typing import List
+from typing import List, Optional
 
 
 class Settings(BaseSettings):
@@ -78,7 +78,7 @@ class Settings(BaseSettings):
     metrics_token: str = ""
 
     # Sentry — error tracking (https://sentry.io)
-    sentry_dsn: str = ""
+    sentry_dsn: Optional[str] = None
 
     # ── Service ───────────────────────────────────────────────────────────────
     app_env: str = "development"

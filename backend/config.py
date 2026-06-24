@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
-from typing import List
+from typing import List, Optional
 import sys
 
 
@@ -60,7 +60,7 @@ class Settings(BaseSettings):
     metrics_token: str = ""
 
     # Sentry — error tracking (https://sentry.io)
-    sentry_dsn: str = ""
+    sentry_dsn: Optional[str] = None
 
     # Admin config store — master encryption key for DB-stored secrets
     # Generate: python -c "import secrets; print(secrets.token_hex(32))"

@@ -25,7 +25,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # ── Sentry (error tracking) ───────────────────────────────────────────────────
-if settings.sentry_dsn:
+if settings.sentry_dsn and settings.sentry_dsn.strip():
     try:
         import sentry_sdk
         from sentry_sdk.integrations.fastapi import FastApiIntegration

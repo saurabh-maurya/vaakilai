@@ -18,7 +18,7 @@ from config import settings
 from routes import consult, documents, research, match, cases_rag, predict, legal_tasks, judge_analytics, litigation_safety, risk_score, doc_compare
 
 # ── Sentry (error tracking) ───────────────────────────────────────────────────
-if settings.sentry_dsn:
+if settings.sentry_dsn and settings.sentry_dsn.strip():
     try:
         import sentry_sdk
         from sentry_sdk.integrations.fastapi import FastApiIntegration
