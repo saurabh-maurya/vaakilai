@@ -40,45 +40,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  // ── API5: Nonce-based Content-Security-Policy ──────────────────────────────
-  // Per-request nonce replaces 'unsafe-inline' for scripts.
-  // 'strict-dynamic' propagates trust to scripts loaded by nonce-verified scripts
-  // (Next.js chunk loading), so individual bundles do not each need a nonce.
-  // Skip CSP in non-production (dev/testing) to avoid blocking Google Fonts and HMR
-  if (process.env.NODE_ENV !== "production") {
-    return NextResponse.next();
-  }
-
-  const nonce = Buffer.from(crypto.randomUUID()).toString("base64");
-
-  const backendUrl =
-    process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
-  const aiUrl = process.env.NEXT_PUBLIC_AI_URL ?? "http://localhost:8001";
-
-  const csp = [
-    "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "img-src 'self' data: blob:",
-    "font-src 'self' https://fonts.gstatic.com",
-    `connect-src 'self' ${backendUrl} ${aiUrl}`,
-    "frame-ancestors 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "object-src 'none'",
-  ].join("; ");
-
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set("x-nonce", nonce);
-  requestHeaders.set("Content-Security-Policy", csp);
-
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  });
-
-  response.headers.set("Content-Security-Policy", csp);
-
-  return response;
+  return NextResponse.next();
 }
 
 export const config = {
