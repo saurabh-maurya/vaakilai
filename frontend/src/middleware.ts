@@ -63,7 +63,6 @@ export function middleware(request: NextRequest) {
     "base-uri 'self'",
     "form-action 'self'",
     "object-src 'none'",
-    "upgrade-insecure-requests",
   ].join("; ");
 
   // Forward nonce to the app via request header (readable by layout.tsx via headers())
