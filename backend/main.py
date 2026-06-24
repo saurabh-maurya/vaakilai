@@ -147,8 +147,8 @@ try:
         excluded_handlers=["/health", "/metrics"],
     ).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
     logger.info("Prometheus metrics exposed at /metrics")
-except ImportError:
-    logger.warning("prometheus-fastapi-instrumentator not installed — metrics disabled")
+except Exception as exc:
+    logger.warning("Prometheus metrics disabled: %s", exc)
 
 app.add_middleware(BodySizeLimitMiddleware)
 app.add_middleware(CorrelationIdMiddleware)

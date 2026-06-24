@@ -29,7 +29,7 @@ python-json-logger==2.0.7
 certifi>=2024.0.0
 
 # Error tracking
-sentry-sdk[fastapi]==2.8.0
+sentry-sdk[fastapi]>=2.19.0
 
 # Metrics (Prometheus)
-prometheus-fastapi-instrumentator==6.1.0
+prometheus-fastapi-instrumentator>=7.0.0
