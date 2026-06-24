@@ -39,6 +39,8 @@ export function useChat() {
       const controller = new AbortController();
       abortRef.current = controller;
 
+      let fullContent = "";
+
       try {
         const params = new URLSearchParams({ query });
         if (jurisdiction) params.set("jurisdiction", jurisdiction);
@@ -62,7 +64,6 @@ export function useChat() {
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
-        let fullContent = "";
         let citations: Citation[] = [];
         let confidence = 0;
 
