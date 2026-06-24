@@ -153,28 +153,20 @@ done
 
 # ── Start Backend ─────────────────────────────────────────────────────────────
 step "Starting Backend API  (port 8000)"
-cd "$BACKEND"
-nohup "$BACKEND/venv/bin/uvicorn" main:app \
-  --host 0.0.0.0 \
-  --port 8000 \
-  --workers 1 \
-  >> "$BACKEND_LOG" 2>&1 &
+setsid bash -c "cd '$BACKEND' && '$BACKEND/venv/bin/uvicorn' main:app \
+  --host 0.0.0.0 --port 8000 --workers 1" \
+  >> "$BACKEND_LOG" 2>&1 </dev/null &
 BACKEND_PID=$!
 disown $BACKEND_PID
-cd "$ROOT"
 info "Backend PID: $BACKEND_PID  →  $BACKEND_LOG"
 
 # ── Start AI Service ──────────────────────────────────────────────────────────
 step "Starting AI Service  (port 8001)"
-cd "$AI"
-nohup "$AI/venv/bin/uvicorn" main:app \
-  --host 0.0.0.0 \
-  --port 8001 \
-  --workers 1 \
-  >> "$AI_LOG" 2>&1 &
+setsid bash -c "cd '$AI' && '$AI/venv/bin/uvicorn' main:app \
+  --host 0.0.0.0 --port 8001 --workers 1" \
+  >> "$AI_LOG" 2>&1 </dev/null &
 AI_PID=$!
 disown $AI_PID
-cd "$ROOT"
 info "AI Service PID: $AI_PID  →  $AI_LOG"
 
 # ── Start Frontend ────────────────────────────────────────────────────────────
@@ -191,9 +183,9 @@ if $PROD_MODE; then
     info "Using existing production build (.next exists). Pass --prod to force rebuild."
     info "To rebuild: rm -rf $FRONTEND/.next && bash start-linux.sh --prod"
   fi
-  nohup npm start >> "$FRONTEND_LOG" 2>&1 &
+  setsid bash -c "cd '$FRONTEND' && npm start" >> "$FRONTEND_LOG" 2>&1 </dev/null &
 else
-  nohup npm run dev >> "$FRONTEND_LOG" 2>&1 &
+  setsid bash -c "cd '$FRONTEND' && npm run dev" >> "$FRONTEND_LOG" 2>&1 </dev/null &
 fi
 
 FRONTEND_PID=$!
