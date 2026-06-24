@@ -1,5 +1,7 @@
 import re
+import io
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, File
+from fastapi.responses import StreamingResponse
 from bson import ObjectId
 from bson.errors import InvalidId
 from datetime import datetime
@@ -7,7 +9,7 @@ import httpx
 
 from database import get_db
 from middleware.auth_middleware import get_current_user
-from services.storage_service import upload_to_s3, get_presigned_url, get_download_url
+from services.storage_service import upload_file, download_file, delete_file
 from services.virus_scanner import scan_bytes
 from config import settings
 
@@ -81,22 +83,22 @@ async def upload_document(
         raise HTTPException(status_code=422, detail=f"File rejected by security scan: {scan_msg}")
 
     safe_name = _safe_filename(file.filename or "upload")
-    db = get_db()
-    s3_key = f"documents/{current_user['user_id']}/{ObjectId()}/{safe_name}"
-    url = await upload_to_s3(content, s3_key, detected_mime)
+    path = f"documents/{current_user['user_id']}/{ObjectId()}/{safe_name}"
+    grid_uri = await upload_file(content, path, detected_mime, bucket_name="documents")
 
+    db = get_db()
     doc_record = {
         "user_id": current_user["user_id"],
         "case_id": case_id,
         "filename": safe_name,
         "content_type": detected_mime,
         "size_bytes": len(content),
-        "s3_key": s3_key,
-        "url": url,
+        "grid_uri": grid_uri,
         "ocr_status": "pending",
         "created_at": datetime.utcnow(),
     }
     result = await db.documents.insert_one(doc_record)
+    doc_id = str(result.inserted_id)
 
     # Trigger OCR if PDF/image
     if detected_mime in ("application/pdf", "image/png", "image/jpeg"):
@@ -104,29 +106,48 @@ async def upload_document(
             try:
                 await client.post(
                     f"{settings.ai_service_url}/ai/documents/ocr",
-                    json={"document_id": str(result.inserted_id), "s3_key": s3_key},
+                    json={"document_id": doc_id, "grid_uri": grid_uri},
                     timeout=5.0,
                 )
             except Exception:
                 pass
 
-    return {"id": str(result.inserted_id), "url": url, "filename": safe_name}
+    return {
+        "id": doc_id,
+        "url": f"/api/v1/documents/file/{doc_id}",
+        "filename": safe_name,
+    }
 
 
-ALLOWED_PRESIGN_CONTENT_TYPES = set(ALLOWED_MIME_MAGIC.keys())
+@router.get("/file/{document_id}")
+async def serve_document(document_id: str, current_user: dict = Depends(get_current_user)):
+    """Stream a document file directly from GridFS. Enforces ownership."""
+    db = get_db()
+    doc = await db.documents.find_one({"_id": _oid(document_id), "user_id": current_user["user_id"]})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    grid_uri = doc.get("grid_uri")
+    if not grid_uri or not grid_uri.startswith("gridfs://"):
+        raise HTTPException(status_code=404, detail="File not available")
+
+    content, content_type = await download_file(grid_uri)
+
+    return StreamingResponse(
+        io.BytesIO(content),
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{doc["filename"]}"'},
+    )
 
 
 @router.get("/presigned-url")
 async def presigned_upload_url(filename: str, content_type: str, current_user: dict = Depends(get_current_user)):
-    if content_type not in ALLOWED_PRESIGN_CONTENT_TYPES:
-        raise HTTPException(
-            status_code=415,
-            detail=f"Unsupported content type. Allowed: {sorted(ALLOWED_PRESIGN_CONTENT_TYPES)}",
-        )
-    safe_name = _safe_filename(filename)
-    s3_key = f"documents/{current_user['user_id']}/{ObjectId()}/{safe_name}"
-    url = await get_presigned_url(s3_key, content_type)
-    return {"upload_url": url, "s3_key": s3_key}
+    """Direct presigned upload is not supported with GridFS storage.
+    Use POST /api/v1/documents/upload instead."""
+    raise HTTPException(
+        status_code=410,
+        detail="Presigned upload not supported. Use POST /api/v1/documents/upload directly.",
+    )
 
 
 @router.get("/")
@@ -138,9 +159,7 @@ async def list_documents(case_id: str = None, current_user: dict = Depends(get_c
     cursor = db.documents.find(query).sort("created_at", -1)
     results = []
     async for doc in cursor:
-        # Replace stored S3 key with a time-limited presigned download URL (1 hour)
-        if doc.get("s3_key"):
-            doc["url"] = await get_download_url(doc["s3_key"], expires=3600)
+        doc["url"] = f"/api/v1/documents/file/{doc['_id']}"
         results.append(doc_out(doc))
     return results
 
@@ -151,14 +170,16 @@ async def get_document(document_id: str, current_user: dict = Depends(get_curren
     doc = await db.documents.find_one({"_id": _oid(document_id), "user_id": current_user["user_id"]})
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    # Replace stored S3 key with a time-limited presigned download URL (1 hour)
-    if doc.get("s3_key"):
-        doc["url"] = await get_download_url(doc["s3_key"], expires=3600)
+    doc["url"] = f"/api/v1/documents/file/{document_id}"
     return doc_out(doc)
 
 
 @router.delete("/{document_id}")
 async def delete_document(document_id: str, current_user: dict = Depends(get_current_user)):
     db = get_db()
-    await db.documents.delete_one({"_id": _oid(document_id), "user_id": current_user["user_id"]})
+    doc = await db.documents.find_one({"_id": _oid(document_id), "user_id": current_user["user_id"]})
+    if doc:
+        if doc.get("grid_uri"):
+            await delete_file(doc["grid_uri"])
+        await db.documents.delete_one({"_id": _oid(document_id)})
     return {"message": "Document deleted"}
