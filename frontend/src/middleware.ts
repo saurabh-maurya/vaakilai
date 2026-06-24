@@ -23,6 +23,8 @@ const PROTECTED_PREFIXES = [
   "/admin",
 ];
 
+// Consumer-only routes — lawyers/firms are redirected to /pro/dashboard by AppLayout(requireConsumer)
+
 function isProtected(pathname: string): boolean {
   return PROTECTED_PREFIXES.some((p) => pathname.startsWith(p));
 }

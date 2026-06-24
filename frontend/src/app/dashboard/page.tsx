@@ -32,15 +32,15 @@ export default function DashboardPage() {
     <AppLayout
       title={`Good ${now.getHours() < 12 ? "morning" : now.getHours() < 17 ? "afternoon" : "evening"}, ${user?.name?.split(" ")[0] ?? "there"}`}
       subtitle="Your legal dashboard — all your tools in one place"
+      requireConsumer
     >
       {/* KPI row */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <StatCard
           title="AI Queries Today"
-          value="3 / 5"
-          subtitle="Free plan limit"
+          value="0"
+          subtitle={user?.subscription_plan === "free" ? "Free plan: 5/day" : "Unlimited"}
           icon={MessageSquare}
-          trend={{ value: 0, label: "resets midnight" }}
         />
         <StatCard
           title="Documents"
@@ -92,7 +92,7 @@ export default function DashboardPage() {
         {/* Recent AI queries */}
         <div>
           <h2 className="text-sm font-semibold uppercase tracking-wider text-dim mb-4">
-            Popular Legal Questions
+            Try Asking
           </h2>
           <div className="vk-card overflow-hidden">
             {RECENT_TOPICS.map((topic, i) => (
