@@ -72,6 +72,8 @@ class Settings(BaseSettings):
     app_env: str = "development"
     debug: bool = False
     cors_origins: str = "http://localhost:3000"
+    # Set to false when running over plain HTTP (no HTTPS/TLS)
+    cookie_secure: bool = True
 
     def get_cors_origins(self) -> List[str]:
         return [o.strip() for o in self.cors_origins.split(",")]

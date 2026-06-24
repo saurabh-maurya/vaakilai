@@ -49,19 +49,21 @@ def user_to_out(doc: dict) -> UserOut:
 
 
 def _set_auth_cookie(response: Response, token: str) -> None:
+    # secure=True only when HTTPS is available; samesite="lax" allows cross-port same-host requests
+    use_secure = settings.cookie_secure if hasattr(settings, "cookie_secure") else not settings.debug
     response.set_cookie(
         key=COOKIE_NAME,
         value=token,
         httponly=True,
-        secure=not settings.debug,   # HTTPS-only in production
-        samesite="strict",
+        secure=use_secure,
+        samesite="lax",
         max_age=settings.jwt_expire_minutes * 60,
         path="/",
     )
 
 
 def _clear_auth_cookie(response: Response) -> None:
-    response.delete_cookie(key=COOKIE_NAME, path="/", samesite="strict")
+    response.delete_cookie(key=COOKIE_NAME, path="/", samesite="lax")
 
 
 async def _check_lockout(db, email: str) -> None:
