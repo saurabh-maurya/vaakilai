@@ -21,10 +21,12 @@ function createClient(baseURL: string): AxiosInstance {
     (err) => {
       const url: string = err.config?.url ?? "";
       const isAuthEndpoint = url.includes("/auth/login") || url.includes("/auth/register");
-      if (err.response?.status === 401 && !isAuthEndpoint && typeof window !== "undefined") {
-        // Session expired — clear stale user state and redirect to login
+      const isSessionCheck = url.includes("/users/me");
+      if (err.response?.status === 401 && !isAuthEndpoint && !isSessionCheck && typeof window !== "undefined") {
+        // Session expired — only redirect if the user was previously logged in
+        const hadUser = !!localStorage.getItem("vk_user");
         localStorage.removeItem("vk_user");
-        window.location.href = "/";
+        if (hadUser) window.location.href = "/";
       }
       return Promise.reject(err);
     }
