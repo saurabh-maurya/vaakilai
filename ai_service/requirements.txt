@@ -59,4 +59,6 @@ sentry-sdk[fastapi]==2.8.0
 redis==5.0.4
 
 # Metrics (Prometheus)
-prometheus-fastapi-instrumentator==6.1.0
+# 6.1.0 crashes on included-router routes ('_IncludedRouter' has no .path);
+# 7.x fixes it (same version the backend uses).
+prometheus-fastapi-instrumentator>=7.0.0
