@@ -28,6 +28,8 @@ const securityHeaders = [
 ];
 
 const nextConfig = {
+  // Emit a self-contained server bundle (.next/standalone) for the Docker runner.
+  output: "standalone",
   eslint: {
     ignoreDuringBuilds: true,
   },
