@@ -74,6 +74,9 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000"
     # Set to false when running over plain HTTP (no HTTPS/TLS)
     cookie_secure: bool = True
+    # "lax" for same-site (local/same-host); "none" for cross-site cookies
+    # (e.g. frontend and backend on different subdomains). "none" forces Secure.
+    cookie_samesite: str = "lax"
 
     def get_cors_origins(self) -> List[str]:
         return [o.strip() for o in self.cors_origins.split(",")]
