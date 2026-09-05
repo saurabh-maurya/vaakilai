@@ -43,10 +43,11 @@ if settings.sentry_dsn and settings.sentry_dsn.strip():
 
 # ── Rate limiter (Redis-backed for multi-worker safety) ───────────────────────
 if settings.redis_url:
-    limiter = Limiter(key_func=get_remote_address, storage_uri=settings.redis_url)
+    # swallow_errors=True → fail open if Redis is unreachable, never 500 the request.
+    limiter = Limiter(key_func=get_remote_address, storage_uri=settings.redis_url, swallow_errors=True)
     logger.info("Rate limiter: Redis-backed (%s)", settings.redis_url.split("@")[-1])
 else:
-    limiter = Limiter(key_func=get_remote_address)
+    limiter = Limiter(key_func=get_remote_address, swallow_errors=True)
     if settings.app_env == "production":
         logger.warning(
             "REDIS_URL not set — rate limiter uses in-memory storage. "

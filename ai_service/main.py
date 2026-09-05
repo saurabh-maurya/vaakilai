@@ -34,10 +34,16 @@ if settings.sentry_dsn and settings.sentry_dsn.strip():
         pass  # sentry-sdk not installed — non-fatal
 
 # ── Rate limiter (Redis-backed for multi-worker safety) ───────────────────────
+# swallow_errors=True → if the Redis storage is unreachable, fail OPEN (allow the
+# request) instead of returning 500 on every rate-limited endpoint.
 if settings.redis_url:
-    limiter = Limiter(key_func=get_remote_address, storage_uri=settings.redis_url)
+    limiter = Limiter(
+        key_func=get_remote_address,
+        storage_uri=settings.redis_url,
+        swallow_errors=True,
+    )
 else:
-    limiter = Limiter(key_func=get_remote_address)
+    limiter = Limiter(key_func=get_remote_address, swallow_errors=True)
 
 # ── MongoDB client (shared with backend for token blacklist) ──────────────────
 
