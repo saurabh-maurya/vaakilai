@@ -27,6 +27,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 USER nextjs
 
 EXPOSE 3000
+# Render injects its own $PORT at runtime (overrides this default).
 ENV PORT 3000
+# Bind to all interfaces — without this, Next standalone binds to the Docker
+# container hostname and Render's proxy gets a 502.
+ENV HOSTNAME "0.0.0.0"
 
 CMD ["node", "server.js"]
