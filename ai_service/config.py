@@ -80,7 +80,9 @@ class Settings(BaseSettings):
     # ── Aalap (OpenNyAI Mistral 7B — Indian legal tasks) ──────────────────────
     # Tried FIRST for every task (maximum legal coverage). If Aalap is disabled
     # or unreachable, calls fall through to the provider chain (Claude → …).
-    aalap_enabled: bool = True
+    # Default off: no provider hosts Aalap for free. Re-enable via env when you
+    # run it yourself (e.g. Ollama on a free CPU VM) with AALAP_BACKEND=ollama.
+    aalap_enabled: bool = False
     aalap_model: str = "opennyaiorg/Aalap-Mistral-7B-v0.1-bf16"
     # Backend: "hosted" (HuggingFace Inference API) or "ollama" (local tag below).
     aalap_backend: str = "hosted"
