@@ -53,8 +53,16 @@ class ChatLLMCompat:
         return SimpleNamespace(content=text)
 
     async def astream(self, messages: list[Any]):
-        async for token in get_llm().stream(_to_messages(messages), max_tokens=self.max_tokens):
-            yield SimpleNamespace(content=token)
+        # Groq's current models (compound / gpt-oss / qwen3) emit their answer in a
+        # `reasoning` channel during token streaming, so the raw `content` stream is
+        # empty/flaky. The non-streaming `complete()` reliably returns the final
+        # answer, so generate once and chunk it to preserve a streaming UX.
+        import re
+        text = await get_llm().complete(
+            _to_messages(messages), max_tokens=self.max_tokens, temperature=self.temperature
+        )
+        for chunk in re.findall(r"\S+\s*", text):
+            yield SimpleNamespace(content=chunk)
 
 
 def get_chat_llm(max_tokens: int = 2048, temperature: float = 0.2, streaming: bool = False) -> ChatLLMCompat:
