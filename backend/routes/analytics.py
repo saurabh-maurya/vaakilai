@@ -3,12 +3,11 @@ from fastapi import APIRouter, Depends, Query
 from bson import ObjectId
 from datetime import datetime, timedelta
 from typing import Optional
-import httpx
 from pydantic import BaseModel, Field
 
 from database import get_db
 from middleware.auth_middleware import get_current_user, require_pro_plan
-from config import settings
+from ai import client as ai_client
 
 _SAFE_ID = re.compile(r"^[\w\-]{1,100}$")
 
@@ -103,21 +102,12 @@ async def predict_outcome(
     payload: PredictOutcomeRequest,
     current_user: dict = Depends(require_pro_plan),
 ):
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.post(
-                f"{settings.ai_service_url}/ai/analytics/predict-outcome",
-                json={
-                    "case_type": payload.case_type,
-                    "jurisdiction": payload.jurisdiction,
-                    "facts_summary": payload.facts_summary,
-                    "judge_id": payload.judge_id,
-                },
-                timeout=10.0,
-            )
-            return resp.json()
-        except Exception:
-            return {"probability": 0.5, "confidence": 0.3, "factors": [], "message": "AI service unavailable"}
+    return await ai_client.predict_outcome(
+        case_type=payload.case_type,
+        jurisdiction=payload.jurisdiction,
+        facts_summary=payload.facts_summary,
+        judge_id=payload.judge_id,
+    ) or {"probability": 0.5, "confidence": 0.3, "factors": [], "message": "AI service unavailable"}
 
 
 @router.get("/judges/{judge_id}")
@@ -125,12 +115,4 @@ async def judge_insights(judge_id: str, current_user: dict = Depends(require_pro
     if not _SAFE_ID.match(judge_id):
         from fastapi import HTTPException
         raise HTTPException(status_code=422, detail="Invalid judge_id format")
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.get(
-                f"{settings.ai_service_url}/ai/analytics/judge/{judge_id}/insights",
-                timeout=10.0,
-            )
-            return resp.json()
-        except Exception:
-            return {"message": "Judge insights unavailable"}
+    return await ai_client.judge_insights(judge_id) or {"message": "Judge insights unavailable"}

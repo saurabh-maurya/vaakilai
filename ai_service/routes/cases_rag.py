@@ -17,7 +17,7 @@ from rag.case_search import search_cases, get_case_by_id, search_within_case
 from rag.vector_store import case_store
 from rag.indian_kanoon_scraper import bulk_scrape
 from rag.pdf_indexer import build_case_from_pdf, ai_extract_case_metadata
-from providers.factory import get_llm_provider
+from llm import get_llm as get_llm_provider
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

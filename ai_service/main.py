@@ -15,7 +15,7 @@ import uuid
 import certifi
 
 from config import settings
-from routes import consult, documents, research, match, cases_rag, predict, legal_tasks, judge_analytics, litigation_safety, risk_score, doc_compare
+from routes import consult, documents, research, match, cases_rag, predict, legal_tasks, judge_analytics, litigation_safety, risk_score, doc_compare, notices
 
 # ── Sentry (error tracking) ───────────────────────────────────────────────────
 if settings.sentry_dsn and settings.sentry_dsn.strip():
@@ -183,6 +183,7 @@ app.include_router(judge_analytics.router,  prefix="/ai/judge-analytics",  tags=
 app.include_router(litigation_safety.router, prefix="/ai/safety",          tags=["Litigation Safety"])
 app.include_router(risk_score.router,       prefix="/ai/risk",             tags=["Case Risk Score"])
 app.include_router(doc_compare.router,      prefix="/ai/docs",             tags=["Document Compare"])
+app.include_router(notices.router,          prefix="/ai/notices",          tags=["Notice Drafting (Local AI)"])
 
 
 @app.get("/health")

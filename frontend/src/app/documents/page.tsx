@@ -83,7 +83,7 @@ export default function DocumentsPage() {
     if (!docA.trim() || !docB.trim()) return;
     setComparing(true);
     try {
-      const { data } = await aiApi.post("/ai/documents/compare", { doc_a: docA, doc_b: docB, doc_type: docType, focus_areas: focusAreas });
+      const { data } = await aiApi.post("/ai/docs/compare", { doc_a: docA, doc_b: docB, doc_type: docType, focus_areas: focusAreas });
       setCompareResult(data);
     } catch {
       setCompareResult({

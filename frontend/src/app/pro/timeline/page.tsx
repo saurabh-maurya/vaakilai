@@ -38,7 +38,7 @@ export default function EventTimelinePage() {
     setLoading(true);
     setResult(null);
     try {
-      const { data } = await aiApi.post("/legal-tasks/event-timeline", {
+      const { data } = await aiApi.post("/ai/legal-tasks/event-timeline", {
         case_description: caseDescription,
         source_type: sourceType,
       });

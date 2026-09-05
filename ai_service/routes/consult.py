@@ -124,6 +124,12 @@ async def _record_usage(user_id: str, query: str, answer: str, endpoint: str) ->
 
 async def _enforce_query_limit(user_id: str) -> None:
     """Enforce free-plan daily AI query limit using the shared MongoDB."""
+    # TEMP: all AI features are open to everyone (Pro gating disabled), so the
+    # daily free-tier cap is off. This also avoids ObjectId() failing on the
+    # internal service user ("internal") for backend→ai_service consult calls.
+    # Re-enable by removing this early return.
+    return
+
     from main import get_db as _get_db
     from config import settings as _settings
     db = _get_db()

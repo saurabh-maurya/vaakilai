@@ -5,13 +5,12 @@ from fastapi.responses import StreamingResponse
 from bson import ObjectId
 from bson.errors import InvalidId
 from datetime import datetime
-import httpx
 
 from database import get_db
 from middleware.auth_middleware import get_current_user
 from services.storage_service import upload_file, download_file, delete_file
 from services.virus_scanner import scan_bytes
-from config import settings
+from ai import client as ai_client
 
 router = APIRouter()
 
@@ -100,17 +99,9 @@ async def upload_document(
     result = await db.documents.insert_one(doc_record)
     doc_id = str(result.inserted_id)
 
-    # Trigger OCR if PDF/image
+    # Trigger OCR if PDF/image (fire-and-forget)
     if detected_mime in ("application/pdf", "image/png", "image/jpeg"):
-        async with httpx.AsyncClient() as client:
-            try:
-                await client.post(
-                    f"{settings.ai_service_url}/ai/documents/ocr",
-                    json={"document_id": doc_id, "grid_uri": grid_uri},
-                    timeout=5.0,
-                )
-            except Exception:
-                pass
+        await ai_client.ocr_document(doc_id, grid_uri)
 
     return {
         "id": doc_id,

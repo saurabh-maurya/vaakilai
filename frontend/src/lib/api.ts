@@ -1,4 +1,45 @@
 import axios, { AxiosInstance } from "axios";
+
+type ValidationErrorItem = {
+  type?: string;
+  loc?: (string | number)[];
+  msg?: string;
+};
+
+/** FastAPI returns `detail` as a string or as validation error objects. */
+export function formatApiDetail(detail: unknown, fallback = "Something went wrong"): string {
+  if (detail == null) return fallback;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object" && "msg" in item) {
+          const err = item as ValidationErrorItem;
+          const field = err.loc?.filter((part) => part !== "body" && part !== "query").pop();
+          const label = field != null ? String(field).replace(/_/g, " ") : null;
+          return label && err.msg ? `${label}: ${err.msg}` : err.msg ?? "";
+        }
+        return "";
+      })
+      .filter(Boolean);
+    return messages.length > 0 ? messages.join(". ") : fallback;
+  }
+  if (typeof detail === "object" && detail !== null && "msg" in detail) {
+    return String((detail as ValidationErrorItem).msg ?? fallback);
+  }
+  return fallback;
+}
+
+export function getApiErrorMessage(err: unknown, fallback = "Something went wrong"): string {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data as { detail?: unknown; message?: string } | undefined;
+    if (data?.detail != null) return formatApiDetail(data.detail, fallback);
+    if (typeof data?.message === "string") return data.message;
+  }
+  if (err instanceof Error && err.message) return err.message;
+  return fallback;
+}
 import type {
   TokenResponse, LoginPayload, RegisterPayload, User,
   Case, Lawyer, LawyerFilters, Invoice, ProAnalytics,

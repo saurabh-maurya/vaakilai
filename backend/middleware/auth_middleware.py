@@ -79,6 +79,10 @@ def require_plan(*plans: str):
     allowed = frozenset(plans)
 
     async def checker(current_user: dict = Depends(get_current_user)):
+        # TEMP: Pro gating disabled — all features are open to everyone.
+        # Re-enable by removing this early return.
+        return current_user
+
         if current_user["role"] == "admin":
             return current_user
         db = get_db()

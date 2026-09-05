@@ -114,28 +114,11 @@ def _compute_diff_html(doc_a: str, doc_b: str) -> tuple[int, int, int, str]:
 
 
 async def _call_llm(prompt: str) -> str:
+    from llm import get_llm, LLMUnavailable
     try:
-        if settings.ai_provider == "claude":
-            import anthropic
-            client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-            msg = client.messages.create(
-                model=settings.model_name,
-                max_tokens=1500,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return msg.content[0].text
-        elif settings.ai_provider == "huggingface":
-            import httpx
-            headers = {"Authorization": f"Bearer {settings.huggingface_api_token}"}
-            payload_data = {"inputs": prompt, "parameters": {"max_new_tokens": 1200}}
-            async with httpx.AsyncClient(timeout=60) as client:
-                resp = await client.post(
-                    f"https://api-inference.huggingface.co/models/{settings.model_name}",
-                    json=payload_data, headers=headers,
-                )
-                result = resp.json()
-                if isinstance(result, list) and result:
-                    return result[0].get("generated_text", "")
+        return await get_llm().complete([{"role": "user", "content": prompt}], max_tokens=1500)
+    except LLMUnavailable as e:
+        logger.warning(f"LLM unavailable: {e}")
         return "{}"
     except Exception as e:
         logger.warning(f"LLM call failed: {e}")
@@ -210,7 +193,7 @@ async def compare_documents(payload: DocCompareRequest, current_user: dict = Dep
         "key_differences": ai_result.get("key_differences", []),
         "recommendation": ai_result.get("recommendation", ""),
         "diff_html": diff_html,       # HTML redline table from difflib
-        "powered_by": f"VakilAI ({settings.ai_provider})",
+        "powered_by": "VakilAI",
         "doc_a_label": payload.doc_a_label,
         "doc_b_label": payload.doc_b_label,
     }

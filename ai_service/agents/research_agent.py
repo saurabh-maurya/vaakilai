@@ -15,13 +15,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from config import settings
 
 
-def get_llm() -> ChatAnthropic:
-    return ChatAnthropic(
-        model=settings.model_name,
-        api_key=settings.anthropic_api_key,
-        temperature=0.15,
-        max_tokens=3000,
-    )
+def get_llm():
+    from llm.langchain_compat import get_chat_llm
+    return get_chat_llm(max_tokens=3000, temperature=0.15)
 
 
 async def _try_pinecone_search(query: str, filters: dict | None = None, top_k: int = 10) -> list[dict] | None:

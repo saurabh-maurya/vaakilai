@@ -111,28 +111,11 @@ Return ONLY the JSON, no other text."""
 
 
 async def _call_llm(prompt: str) -> str:
+    from llm import get_llm, LLMUnavailable
     try:
-        if settings.ai_provider == "claude":
-            import anthropic
-            client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-            msg = client.messages.create(
-                model=settings.model_name,
-                max_tokens=1200,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return msg.content[0].text
-        elif settings.ai_provider == "huggingface":
-            import httpx
-            headers = {"Authorization": f"Bearer {settings.huggingface_api_token}"}
-            payload_data = {"inputs": prompt, "parameters": {"max_new_tokens": 1000}}
-            async with httpx.AsyncClient(timeout=60) as client:
-                resp = await client.post(
-                    f"https://api-inference.huggingface.co/models/{settings.model_name}",
-                    json=payload_data, headers=headers,
-                )
-                result = resp.json()
-                if isinstance(result, list) and result:
-                    return result[0].get("generated_text", "")
+        return await get_llm().complete([{"role": "user", "content": prompt}], max_tokens=1200)
+    except LLMUnavailable as e:
+        logger.warning(f"LLM unavailable: {e}")
         return "{}"
     except Exception as e:
         logger.warning(f"LLM call failed: {e}")
@@ -190,7 +173,7 @@ async def compute_risk_score(payload: RiskScoreRequest, current_user: dict = Dep
     )
     try:
         raw = await _call_llm(prompt)
-        result = _parse_result(raw, powered_by=f"VakilAI ({settings.ai_provider})")
+        result = _parse_result(raw, powered_by="VakilAI")
         logger.info(f"Risk score complete: overall={result.get('overall_score')} level={result.get('overall_level')}")
         return result
     except Exception as e:

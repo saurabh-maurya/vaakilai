@@ -1,12 +1,11 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from bson import ObjectId
 from datetime import datetime
-import httpx
 
 from database import get_db
 from models.lawyer import LawyerProfileCreate, LawyerProfileUpdate, LawyerProfileDB, LawyerSearchFilters, AvailabilitySlot
 from middleware.auth_middleware import get_current_user, require_lawyer
-from config import settings
+from ai import client as ai_client
 
 router = APIRouter()
 
@@ -102,43 +101,35 @@ async def ai_match_lawyers(
     language: str = None,
     current_user: dict = Depends(get_current_user),
 ):
-    # Call AI service for matching scores
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.post(
-                f"{settings.ai_service_url}/ai/match/score",
-                json={"legal_issue": legal_issue, "jurisdiction": jurisdiction, "budget": budget, "language": language},
-                timeout=10.0,
-            )
-            ai_result = resp.json()
-        except Exception:
-            ai_result = {"lawyers": []}
-
-    # Fetch matched lawyer profiles from DB
+    # ai_service scores ONE lawyer per call, so build a candidate pool from the DB
+    # (verified lawyers, best-rated first) and score each against the case.
+    # TODO: use jurisdiction/budget/language to pre-filter the candidate pool.
     db = get_db()
-    lawyer_ids = [m["lawyer_id"] for m in ai_result.get("lawyers", [])]
-    results = []
-    for lid in lawyer_ids[:5]:
-        try:
-            doc = await db.lawyer_profiles.find_one({"_id": ObjectId(lid)})
-            if doc:
-                doc["id"] = str(doc.pop("_id"))
-                match_info = next((m for m in ai_result["lawyers"] if m["lawyer_id"] == lid), {})
-                doc["match_score"] = match_info.get("match_score", 0)
-                doc["match_reasoning"] = match_info.get("reasoning", "")
-                results.append(doc)
-        except Exception:
-            continue
+    candidates = []
+    cursor = db.lawyer_profiles.find({"verification_status": "verified"}).sort("rating", -1).limit(8)
+    async for doc in cursor:
+        doc["id"] = str(doc.pop("_id"))
+        candidates.append(doc)
 
-    if not results:
-        # Fallback: return top-rated verified lawyers
-        cursor = db.lawyer_profiles.find({"verification_status": "verified"}).sort("rating", -1).limit(5)
-        async for doc in cursor:
-            doc["id"] = str(doc.pop("_id"))
+    scored = []
+    for doc in candidates:
+        res = await ai_client.match_score(legal_issue, doc["id"], lawyer_profile=doc)
+        if res is not None:
+            doc["match_score"] = res.get("score", 0)
+            doc["match_reasoning"] = res.get("reason", "")
+            scored.append(doc)
+
+    ai_assisted = bool(scored)
+    if scored:
+        scored.sort(key=lambda d: d.get("match_score", 0), reverse=True)
+        results = scored[:5]
+    else:
+        # Fallback: top-rated verified lawyers (AI unavailable)
+        results = candidates[:5]
+        for doc in results:
             doc["match_score"] = 0.0
-            results.append(doc)
 
-    return {"lawyers": results, "ai_assisted": bool(lawyer_ids)}
+    return {"lawyers": results, "ai_assisted": ai_assisted}
 
 
 @router.get("/lawyers/{lawyer_id}/availability")
@@ -172,13 +163,8 @@ async def set_availability(
 
 @router.post("/complexity-score")
 async def complexity_score(case_facts: str, practice_area: str = None):
-    async with httpx.AsyncClient() as client:
-        try:
-            resp = await client.post(
-                f"{settings.ai_service_url}/ai/case/complexity",
-                json={"case_facts": case_facts, "practice_area": practice_area},
-                timeout=10.0,
-            )
-            return resp.json()
-        except Exception:
-            return {"complexity_level": "moderate", "recommended_tier": "mid", "reasoning": "AI service unavailable"}
+    return await ai_client.case_complexity(case_facts, practice_area=practice_area) or {
+        "complexity_level": "moderate",
+        "recommended_tier": "mid",
+        "reasoning": "AI service unavailable",
+    }

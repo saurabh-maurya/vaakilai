@@ -34,29 +34,12 @@ class CourtTendencyRequest(BaseModel):
 # ── LLM helper ────────────────────────────────────────────────────────────────
 
 async def _llm_analyse(prompt: str) -> str:
-    """Route to configured LLM provider."""
+    """Route to the open LLM layer (ai_service/llm), never Claude."""
+    from llm import get_llm, LLMUnavailable
     try:
-        if settings.ai_provider == "claude":
-            import anthropic
-            client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-            msg = client.messages.create(
-                model=settings.model_name,
-                max_tokens=1024,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return msg.content[0].text
-        elif settings.ai_provider == "huggingface":
-            import httpx
-            headers = {"Authorization": f"Bearer {settings.huggingface_api_token}"}
-            payload = {"inputs": prompt, "parameters": {"max_new_tokens": 800}}
-            async with httpx.AsyncClient(timeout=60) as client:
-                resp = await client.post(
-                    f"https://api-inference.huggingface.co/models/{settings.model_name}",
-                    json=payload, headers=headers,
-                )
-                result = resp.json()
-                if isinstance(result, list) and result:
-                    return result[0].get("generated_text", "")
+        return await get_llm().complete([{"role": "user", "content": prompt}], max_tokens=1024)
+    except LLMUnavailable as e:
+        logger.warning(f"LLM unavailable: {e}")
         return "Analysis unavailable — LLM provider not configured."
     except Exception as e:
         logger.warning(f"LLM call failed: {e}")
@@ -145,7 +128,7 @@ async def analyse_judge(payload: JudgeAnalyticsRequest, current_user: dict = Dep
             "practice_area": payload.practice_area or "All Areas",
             "cases_sampled": len(results),
             "raw_analysis": analysis_text,
-            "powered_by": f"VakilAI ({settings.ai_provider})",
+            "powered_by": "VakilAI",
         }
 
     except Exception as e:
@@ -185,7 +168,7 @@ async def analyse_court(payload: CourtTendencyRequest, current_user: dict = Depe
             "years": payload.years,
             "cases_sampled": len(results),
             "raw_analysis": analysis_text,
-            "powered_by": f"VakilAI ({settings.ai_provider})",
+            "powered_by": "VakilAI",
         }
 
     except Exception as e:

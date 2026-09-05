@@ -25,7 +25,7 @@ from typing import Optional
 import httpx
 
 from config import settings
-from providers.factory import get_llm_provider
+from llm import get_llm as get_llm_provider
 
 logger = logging.getLogger(__name__)
 
@@ -36,42 +36,19 @@ HF_API_BASE = "https://api-inference.huggingface.co/models"
 
 async def _call_aalap(prompt: str, max_tokens: int = 1024) -> str:
     """
-    Call Aalap via HuggingFace Inference API (Mistral instruction format).
-    Falls back to general provider if Aalap is disabled or call fails.
+    Run through the provider chain, which tries Aalap FIRST (when enabled) and
+    falls over to Claude → Groq → Gemini → hosted. Single source of truth in llm/.
     """
-    if settings.aalap_enabled and settings.huggingface_api_token:
-        try:
-            instruct_prompt = f"<s>[INST] {prompt} [/INST]"
-            async with httpx.AsyncClient(timeout=90) as client:
-                resp = await client.post(
-                    f"{HF_API_BASE}/{settings.aalap_model}",
-                    headers={"Authorization": f"Bearer {settings.huggingface_api_token}"},
-                    json={
-                        "inputs": instruct_prompt,
-                        "parameters": {
-                            "max_new_tokens": max_tokens,
-                            "temperature": 0.2,
-                            "return_full_text": False,
-                            "do_sample": True,
-                        },
-                        "options": {"wait_for_model": True},
-                    },
-                )
-                resp.raise_for_status()
-                data = resp.json()
-                if isinstance(data, list) and data:
-                    return data[0].get("generated_text", "").strip()
-                return str(data).strip()
-        except Exception as e:
-            logger.warning(f"Aalap API call failed, falling back to general LLM: {e}")
-
-    # Fallback — general LLM provider
-    provider = get_llm_provider()
+    from llm import LLMUnavailable
     messages = [
         {"role": "system", "content": "You are an expert Indian legal assistant with deep knowledge of Indian law, statutes, and court procedures."},
         {"role": "user", "content": prompt},
     ]
-    return await provider.complete(messages, max_tokens=max_tokens, temperature=0.2)
+    try:
+        return await get_llm_provider().complete(messages, max_tokens=max_tokens, temperature=0.2)
+    except LLMUnavailable as e:
+        logger.warning(f"No LLM provider available for Aalap task: {e}")
+        return ""
 
 
 # ── Task 1: Argument Generation ───────────────────────────────────────────────

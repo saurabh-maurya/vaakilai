@@ -87,28 +87,11 @@ Return ONLY the JSON object, no other text."""
 
 
 async def _call_llm(prompt: str) -> str:
+    from llm import get_llm, LLMUnavailable
     try:
-        if settings.ai_provider == "claude":
-            import anthropic
-            client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-            msg = client.messages.create(
-                model=settings.model_name,
-                max_tokens=1500,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return msg.content[0].text
-        elif settings.ai_provider == "huggingface":
-            import httpx
-            headers = {"Authorization": f"Bearer {settings.huggingface_api_token}"}
-            payload = {"inputs": prompt, "parameters": {"max_new_tokens": 1200}}
-            async with httpx.AsyncClient(timeout=60) as client:
-                resp = await client.post(
-                    f"https://api-inference.huggingface.co/models/{settings.model_name}",
-                    json=payload, headers=headers,
-                )
-                result = resp.json()
-                if isinstance(result, list) and result:
-                    return result[0].get("generated_text", "")
+        return await get_llm().complete([{"role": "user", "content": prompt}], max_tokens=1500)
+    except LLMUnavailable as e:
+        logger.warning(f"LLM unavailable: {e}")
         return "{}"
     except Exception as e:
         logger.warning(f"LLM call failed: {e}")
@@ -175,7 +158,7 @@ async def litigation_safety_check(payload: SafetyCheckRequest, current_user: dic
 
     try:
         raw = await _call_llm(prompt)
-        result = _parse_safety_result(raw, powered_by=f"VakilAI ({settings.ai_provider})")
+        result = _parse_safety_result(raw, powered_by="VakilAI")
         logger.info(f"Safety check complete: risk_level={result.get('overall_risk')} score={result.get('risk_score')}")
         return result
     except Exception as e:

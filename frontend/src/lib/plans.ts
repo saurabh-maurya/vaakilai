@@ -163,6 +163,11 @@ export function hasFeatureAccess(
   userPlan: string | undefined,
   featureId: string
 ): boolean {
+  // TEMP: Pro gating disabled — every feature is available to everyone.
+  // Re-enable by restoring the plan check below.
+  return true;
+
+  // eslint-disable-next-line no-unreachable
   if (!userPlan) return false;
   const feat = FEATURES[featureId];
   if (!feat) return true; // unknown feature = allow (fail-open)

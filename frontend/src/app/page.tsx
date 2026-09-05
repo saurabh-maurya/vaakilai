@@ -10,6 +10,7 @@ import {
   TrendingUp, PhoneCall, Search, ShieldCheck,
 } from "lucide-react";
 import { isProRole } from "@/lib/utils";
+import { getApiErrorMessage } from "@/lib/api";
 import toast from "react-hot-toast";
 
 // ── Animated counter ──────────────────────────────────────────────────────────
@@ -187,8 +188,7 @@ export default function LandingPage() {
         toast.success("Account created!");
       }
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Something went wrong";
-      toast.error(msg);
+      toast.error(getApiErrorMessage(err));
     } finally {
       setSubmitting(false);
     }

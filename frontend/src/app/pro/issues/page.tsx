@@ -38,7 +38,7 @@ export default function IssueSpotterPage() {
     setLoading(true);
     setResult(null);
     try {
-      const { data } = await aiApi.post("/legal-tasks/issue-spotter", form);
+      const { data } = await aiApi.post("/ai/legal-tasks/issue-spotter", form);
       setResult(data);
     } catch {
       setResult({

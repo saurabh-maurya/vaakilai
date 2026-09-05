@@ -18,7 +18,7 @@ from typing import Optional
 import httpx
 
 from config import settings
-from providers.factory import get_llm_provider
+from llm import get_llm as get_llm_provider
 from rag.case_search import search_cases
 
 logger = logging.getLogger(__name__)

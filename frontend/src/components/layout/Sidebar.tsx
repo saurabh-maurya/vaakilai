@@ -9,7 +9,7 @@ import {
   Briefcase, BookOpen, Receipt, Settings, LogOut, Scale,
   ChevronDown, ChevronRight, Sparkles, Landmark, Search, CheckSquare,
   Gavel, ArrowLeftRight, Newspaper, BarChart2, FileSignature, Lightbulb,
-  UserCheck, Swords, ListChecks, Clock, Library, Brain, Home,
+  UserCheck, Swords, ListChecks, Clock, Library, Brain, Home, ScrollText,
   ClipboardList, Building2, PhoneCall, ShieldAlert, Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -87,6 +87,7 @@ const PRO_LEGAL: SidebarEntry[] = [
       { href: "/pro/issues",    label: "Issue Spotter",     icon: ListChecks },
       { href: "/pro/timeline",  label: "Event Timeline",    icon: Clock },
       { href: "/pro/statute",   label: "Statute Breakdown", icon: Library },
+      { href: "/pro/notices",   label: "Notice Drafting",   icon: ScrollText },
     ],
   },
 

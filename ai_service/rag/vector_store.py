@@ -14,7 +14,7 @@ from typing import List, Optional
 import numpy as np
 
 from config import settings
-from providers.factory import get_embedding_provider
+from llm import get_embedder as get_embedding_provider
 
 logger = logging.getLogger(__name__)
 

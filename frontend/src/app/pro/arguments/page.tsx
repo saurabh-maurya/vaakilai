@@ -90,7 +90,7 @@ export default function ArgumentBuilderPage() {
     setLoading(true);
     setResult(null);
     try {
-      const { data } = await aiApi.post("/legal-tasks/argument-builder", form);
+      const { data } = await aiApi.post("/ai/legal-tasks/argument-builder", form);
       setResult(data);
     } catch {
       setResult({

@@ -51,13 +51,9 @@ class DocumentReviewState(TypedDict, total=False):
     risk_score: int
 
 
-def get_llm() -> ChatAnthropic:
-    return ChatAnthropic(
-        model=settings.model_name,
-        api_key=settings.anthropic_api_key,
-        temperature=0.1,
-        max_tokens=4096,
-    )
+def get_llm():
+    from llm.langchain_compat import get_chat_llm
+    return get_chat_llm(max_tokens=4096, temperature=0.1)
 
 
 TEMPLATE_PROMPTS = {

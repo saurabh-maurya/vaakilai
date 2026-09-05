@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { useAuth } from "@/contexts/AuthContext";
-import { usersApi, backendApi, authApi } from "@/lib/api";
+import { usersApi, backendApi, authApi, getApiErrorMessage } from "@/lib/api";
 import { INDIAN_STATES, LANGUAGES, isProRole, formatDate } from "@/lib/utils";
 import React from "react";
 import {
@@ -333,8 +333,7 @@ function SettingsPage() {
       setPasswordForm({ current: "", next: "", confirm: "" });
       toast.success("Password updated successfully!");
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-      toast.error(msg ?? "Failed to update password. Please try again.");
+      toast.error(getApiErrorMessage(err, "Failed to update password. Please try again."));
     } finally {
       setSavingPassword(false);
     }
@@ -531,8 +530,7 @@ function SettingsPage() {
                           setMfaStep("idle"); setMfaCode(""); setMfaQr(null);
                           toast.success("2FA enabled successfully!");
                         } catch (err: unknown) {
-                          const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-                          toast.error(msg ?? "Invalid code. Please try again.");
+                          toast.error(getApiErrorMessage(err, "Invalid code. Please try again."));
                         } finally { setMfaBusy(false); }
                       }}>
                         {mfaBusy ? "Verifying…" : "Verify & Activate"}
@@ -566,8 +564,7 @@ function SettingsPage() {
                             setMfaStep("idle"); setMfaCode("");
                             toast.success("2FA disabled.");
                           } catch (err: unknown) {
-                            const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
-                            toast.error(msg ?? "Invalid code.");
+                            toast.error(getApiErrorMessage(err, "Invalid code."));
                           } finally { setMfaBusy(false); }
                         }}>
                         {mfaBusy ? "Disabling…" : "Confirm Disable"}

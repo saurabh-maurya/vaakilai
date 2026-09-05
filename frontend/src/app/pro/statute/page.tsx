@@ -54,7 +54,7 @@ export default function StatuteBreakdownPage() {
     setLoading(true);
     setResult(null);
     try {
-      const { data } = await aiApi.post("/legal-tasks/statute-breakdown", {
+      const { data } = await aiApi.post("/ai/legal-tasks/statute-breakdown", {
         statute_text: statuteText,
         statute_name: statuteName,
       });

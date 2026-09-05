@@ -39,6 +39,7 @@ from fastapi import APIRouter, Depends, Request, Response, HTTPException
 from fastapi.responses import PlainTextResponse
 
 from config import settings
+from ai import client as ai_client
 from middleware.auth_middleware import require_admin as _require_admin
 
 router = APIRouter()
@@ -81,28 +82,16 @@ async def _send_whatsapp_reply(to: str, body: str):
 
 async def _get_ai_response(message: str, from_number: str) -> str:
     """Call VakilAI AI service consultation endpoint (service-to-service with internal key)."""
-    try:
-        headers = {}
-        if settings.internal_service_key:
-            headers["X-Internal-Key"] = settings.internal_service_key
-        async with httpx.AsyncClient(timeout=30) as client:
-            resp = await client.post(
-                f"{settings.ai_service_url}/ai/consult",
-                json={"query": message, "language": "en", "conversation_history": []},
-                headers=headers,
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                answer = data.get("answer", "")
-                confidence = data.get("confidence", 0)
-                conf_label = "High" if confidence > 0.8 else "Medium" if confidence > 0.6 else "Low"
-                return (
-                    f"{answer[:1000]}\n\n"
-                    f"_Confidence: {conf_label} | VakilAI Legal Assistant_\n"
-                    "_This is AI-generated information, not legal advice._"
-                )
-    except Exception as e:
-        logger.error(f"AI service call failed: {e}")
+    data = await ai_client.consult(message, language="en", conversation_history=[])
+    if data is not None:
+        answer = data.get("answer", "")
+        confidence = data.get("confidence", 0)
+        conf_label = "High" if confidence > 0.8 else "Medium" if confidence > 0.6 else "Low"
+        return (
+            f"{answer[:1000]}\n\n"
+            f"_Confidence: {conf_label} | VakilAI Legal Assistant_\n"
+            "_This is AI-generated information, not legal advice._"
+        )
     return (
         "Sorry, I'm unable to process your query right now. "
         "Please visit vakilai.com or try again later.\n\n"

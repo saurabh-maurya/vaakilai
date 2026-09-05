@@ -13,13 +13,9 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from config import settings
 
 
-def get_llm() -> ChatAnthropic:
-    return ChatAnthropic(
-        model=settings.model_name,
-        api_key=settings.anthropic_api_key,
-        temperature=0.1,
-        max_tokens=1000,
-    )
+def get_llm():
+    from llm.langchain_compat import get_chat_llm
+    return get_chat_llm(max_tokens=1000, temperature=0.1)
 
 
 async def score_lawyer_match(case_description: str, lawyer_profile: dict) -> dict:

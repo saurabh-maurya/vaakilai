@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { backendApi } from "@/lib/api";
+import { backendApi, getApiErrorMessage } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 
@@ -322,8 +322,7 @@ export default function AdminDashboard() {
       setConfigModal(null);
       fetchConfig();
     } catch (e: unknown) {
-      const msg = (e as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Save failed.";
-      setConfigError(String(msg));
+      setConfigError(getApiErrorMessage(e, "Save failed."));
     } finally {
       setConfigSaving(false);
     }

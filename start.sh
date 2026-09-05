@@ -88,7 +88,7 @@ cp "$ROOT/.env" "$AI/.env"
 # ── Start Backend ─────────────────────────────────────────────────────────
 info "Starting Backend API on port 8000..."
 cd "$BACKEND"
-"$BACKEND/venv/bin/uvicorn" main:app \
+"$BACKEND/venv/bin/python" -m uvicorn main:app \
   --host 0.0.0.0 --port 8000 \
   > "$BACKEND_LOG" 2>&1 &
 BACKEND_PID=$!
@@ -97,7 +97,7 @@ cd "$ROOT"
 # ── Start AI Service ──────────────────────────────────────────────────────
 info "Starting AI Service on port 8001..."
 cd "$AI"
-"$AI/venv/bin/uvicorn" main:app \
+"$AI/venv/bin/python" -m uvicorn main:app \
   --host 0.0.0.0 --port 8001 \
   > "$AI_LOG" 2>&1 &
 AI_PID=$!

@@ -1,0 +1,24 @@
+# Slim backend image for Render's free tier (512MB RAM).
+# Skips ClamAV (which needs ~1GB) — the app auto-falls back to its
+# pattern-based scanner (see docker-entrypoint.sh). Binds to Render's $PORT.
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Security patches + curl for healthchecks (no ClamAV)
+RUN apt-get update \
+    && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends curl \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+COPY --chown=appuser:appgroup . .
+
+USER appuser
+
+# Render provides $PORT; default to 8000 for local runs. 1 worker fits 512MB.
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000} --workers 1"]

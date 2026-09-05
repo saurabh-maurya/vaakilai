@@ -63,7 +63,7 @@ export default function CaseSearchPage() {
       if (practiceArea) params.set("practice_area", practiceArea);
       if (yearFrom) params.set("year_from", yearFrom);
       if (yearTo) params.set("year_to", yearTo);
-      const { data } = await aiApi.get(`/cases/search?${params}`);
+      const { data } = await aiApi.get(`/ai/cases/search?${params}`);
       setResults(data);
     } catch {
       setResults({ query, total: 0, results: [], ai_summary: "Search failed. Please try again." });
@@ -76,7 +76,7 @@ export default function CaseSearchPage() {
     if (!inCaseQuery.trim()) return;
     setInCaseLoading(caseId);
     try {
-      const { data } = await aiApi.post(`/cases/${caseId}/search`, { query: inCaseQuery });
+      const { data } = await aiApi.post(`/ai/cases/${caseId}/search`, { query: inCaseQuery });
       setInCaseResult(prev => ({ ...prev, [caseId]: data }));
     } catch {
       setInCaseResult(prev => ({ ...prev, [caseId]: { answer: "Search failed.", excerpts: [] } }));
@@ -90,7 +90,7 @@ export default function CaseSearchPage() {
     setIndexing(true);
     setIndexMsg("");
     try {
-      const { data } = await aiApi.post("/cases/index/url", { queries: [query], cases_per_query: 5 });
+      const { data } = await aiApi.post("/ai/cases/index/url", { queries: [query], cases_per_query: 5 });
       setIndexMsg(`Indexed ${data.indexed} cases from Indian Kanoon. Total: ${data.total}`);
     } catch {
       setIndexMsg("Failed to index cases.");
@@ -107,7 +107,7 @@ export default function CaseSearchPage() {
     const form = new FormData();
     form.append("file", file);
     try {
-      const { data } = await aiApi.post("/cases/index/upload", form, {
+      const { data } = await aiApi.post("/ai/cases/index/upload", form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
       setIndexMsg(`Indexed: "${data.title}" (ID: ${data.case_id})`);

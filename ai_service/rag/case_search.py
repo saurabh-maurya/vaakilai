@@ -10,7 +10,7 @@ import re
 from typing import List, Optional
 
 from .vector_store import case_store
-from providers.factory import get_llm_provider
+from llm import get_llm as get_llm_provider
 
 logger = logging.getLogger(__name__)
 

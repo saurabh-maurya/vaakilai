@@ -4,7 +4,9 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from datetime import datetime, timedelta
 from bson import ObjectId
+from pymongo.errors import DuplicateKeyError
 import pyotp
+import re
 import qrcode
 import qrcode.image.svg
 import io
@@ -99,6 +101,42 @@ async def _clear_attempts(db, email: str) -> None:
     await db.login_attempts.delete_one({"email": email})
 
 
+def _normalize_phone(phone: str | None) -> str | None:
+    if not phone:
+        return None
+    cleaned = re.sub(r"[\s\-()]", "", phone.strip())
+    if not cleaned:
+        return None
+    if cleaned.startswith("+"):
+        return cleaned
+    if cleaned.startswith("91") and len(cleaned) == 12:
+        return f"+{cleaned}"
+    if len(cleaned) == 10 and cleaned[0] in "6789":
+        return f"+91{cleaned}"
+    return cleaned
+
+
+async def _phone_taken(db, phone: str) -> bool:
+    """Check phone against stored value and common Indian format variants."""
+    variants = {phone}
+    if phone.startswith("+91") and len(phone) == 13:
+        variants.add(phone[3:])
+        variants.add(phone[1:])
+    elif len(phone) == 10:
+        variants.add(f"+91{phone}")
+        variants.add(f"91{phone}")
+    return await db.users.find_one({"phone": {"$in": list(variants)}}) is not None
+
+
+def _duplicate_key_message(exc: DuplicateKeyError) -> str:
+    errmsg = str(exc)
+    if "phone" in errmsg:
+        return "Phone number already registered"
+    if "email" in errmsg:
+        return "Email already registered"
+    return "Account already exists"
+
+
 @router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
 @limiter.limit("5/minute")
 async def register(request: Request, response: Response, payload: UserCreate):
@@ -106,15 +144,23 @@ async def register(request: Request, response: Response, payload: UserCreate):
     if await db.users.find_one({"email": payload.email}):
         raise HTTPException(status_code=400, detail="Email already registered")
 
+    phone = _normalize_phone(payload.phone)
+    if phone and await _phone_taken(db, phone):
+        raise HTTPException(status_code=400, detail="Phone number already registered")
+
     user_doc = UserDB(
         name=payload.name,
         email=payload.email,
-        phone=payload.phone,
+        phone=phone,
         hashed_password=hash_password(payload.password),
         role=UserRole.consumer,  # always force consumer — role escalation via admin workflow only
     ).model_dump(exclude_none=True)
 
-    result = await db.users.insert_one(user_doc)
+    try:
+        result = await db.users.insert_one(user_doc)
+    except DuplicateKeyError as exc:
+        raise HTTPException(status_code=400, detail=_duplicate_key_message(exc))
+
     user_doc["_id"] = result.inserted_id
 
     token = create_access_token({

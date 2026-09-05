@@ -15,11 +15,10 @@ from bson import ObjectId
 from database import get_db
 from middleware.auth_middleware import get_current_user
 from config import settings
+from ai import client as ai_client
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
-
-AI_SERVICE_URL = "http://localhost:8001"
 
 ODR_MATTER_TYPES = [
     "Motor Accident Claim", "Consumer Dispute", "Cheque Bounce (Sec 138 NI Act)",
@@ -49,29 +48,19 @@ class ODRWizardRequest(BaseModel):
 
 async def _generate_odr_prep(data: ODRWizardRequest) -> dict:
     """Call AI service to generate ODR preparation materials."""
-    try:
-        async with httpx.AsyncClient(timeout=60) as client:
-            resp = await client.post(
-                f"{AI_SERVICE_URL}/ai/consult",
-                json={
-                    "query": (
-                        f"I need to file a {data.matter_type} dispute for ODR/Lok Adalat. "
-                        f"Dispute: {data.dispute_summary}. "
-                        f"My position: {data.claimant_position}. "
-                        f"Desired outcome: {data.desired_outcome}. "
-                        f"Claim amount: ₹{data.claim_amount or 'Not specified'}. "
-                        "Please provide: 1) Position paper summary 2) Key legal arguments "
-                        "3) BATNA (Best Alternative To Negotiated Agreement) 4) Suggested settlement range "
-                        "5) Documents to submit. Format clearly."
-                    ),
-                    "practice_area": data.matter_type,
-                },
-            )
-            if resp.status_code == 200:
-                ai_data = resp.json()
-                return {"ai_analysis": ai_data.get("answer", ""), "citations": ai_data.get("citations", [])}
-    except Exception as e:
-        logger.error(f"AI prep generation failed: {e}")
+    query = (
+        f"I need to file a {data.matter_type} dispute for ODR/Lok Adalat. "
+        f"Dispute: {data.dispute_summary}. "
+        f"My position: {data.claimant_position}. "
+        f"Desired outcome: {data.desired_outcome}. "
+        f"Claim amount: ₹{data.claim_amount or 'Not specified'}. "
+        "Please provide: 1) Position paper summary 2) Key legal arguments "
+        "3) BATNA (Best Alternative To Negotiated Agreement) 4) Suggested settlement range "
+        "5) Documents to submit. Format clearly."
+    )
+    ai_data = await ai_client.consult(query, practice_area=data.matter_type, timeout=60.0)
+    if ai_data is not None:
+        return {"ai_analysis": ai_data.get("answer", ""), "citations": ai_data.get("citations", [])}
     return {"ai_analysis": "Unable to generate analysis. Please try again.", "citations": []}
 
 

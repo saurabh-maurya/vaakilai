@@ -109,7 +109,7 @@ export default function JudgeAnalyticsPage() {
     setResult(null);
     setError("");
     try {
-      const { data } = await aiApi.post("/judge-analytics/judge", form);
+      const { data } = await aiApi.post("/ai/judge-analytics/judge", form);
       setResult(data);
     } catch {
       setError("Unable to analyse. Please ensure cases are indexed or try again.");

@@ -61,14 +61,9 @@ class ConsultState(TypedDict, total=False):
 
 # ── LLM setup ────────────────────────────────────────────────────────────────
 
-def get_llm(streaming: bool = False) -> ChatAnthropic:
-    return ChatAnthropic(
-        model=settings.model_name,
-        api_key=settings.anthropic_api_key,
-        streaming=streaming,
-        max_tokens=2048,
-        temperature=0.2,
-    )
+def get_llm(streaming: bool = False):
+    from llm.langchain_compat import get_chat_llm
+    return get_chat_llm(max_tokens=2048, temperature=0.2, streaming=streaming)
 
 
 # ── Node: Classify query ──────────────────────────────────────────────────────
