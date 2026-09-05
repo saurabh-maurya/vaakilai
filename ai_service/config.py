@@ -21,7 +21,7 @@ class Settings(BaseSettings):
     # Groq (OpenAI-compatible, free tier, fast 70B)
     groq_api_key: str = ""
     groq_base_url: str = "https://api.groq.com/openai/v1"
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "qwen/qwen3.8-27b"  # Groq retired the Llama-3.x models
 
     # Gemini (Google, via its OpenAI-compatible endpoint)
     gemini_api_key: str = ""
