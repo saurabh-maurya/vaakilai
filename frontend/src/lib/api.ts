@@ -50,6 +50,15 @@ import type {
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
 const AI_URL = process.env.NEXT_PUBLIC_AI_URL ?? "http://localhost:8001";
 
+// In the browser, talk to the frontend's OWN origin so the auth cookie is
+// first-party (set on the frontend domain). Next.js rewrites (next.config.mjs)
+// transparently proxy these to the real services. This is what lets the Next
+// middleware read `vk_session` and stops the /dashboard redirect loop.
+// On the server (SSR) there is no origin, so call the services directly.
+const isBrowser = typeof window !== "undefined";
+const BACKEND_BASE = isBrowser ? "/api/backend" : `${BACKEND_URL}/api/v1`;
+const AI_BASE = isBrowser ? "/api/aiproxy" : AI_URL;
+
 function createClient(baseURL: string): AxiosInstance {
   const client = axios.create({
     baseURL,
@@ -76,8 +85,8 @@ function createClient(baseURL: string): AxiosInstance {
   return client;
 }
 
-export const backendApi = createClient(`${BACKEND_URL}/api/v1`);
-export const aiApi = createClient(AI_URL);
+export const backendApi = createClient(BACKEND_BASE);
+export const aiApi = createClient(AI_BASE);
 
 // ── Auth ──────────────────────────────────────────────────────────────────
 

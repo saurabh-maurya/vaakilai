@@ -48,9 +48,10 @@ const nextConfig = {
         source: "/api/backend/:path*",
         destination: `${process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"}/api/v1/:path*`,
       },
+      // Forward the path verbatim so both /ai/* and /predict, /safety-check work.
       {
-        source: "/api/ai/:path*",
-        destination: `${process.env.NEXT_PUBLIC_AI_URL || "http://localhost:8001"}/ai/:path*`,
+        source: "/api/aiproxy/:path*",
+        destination: `${process.env.NEXT_PUBLIC_AI_URL || "http://localhost:8001"}/:path*`,
       },
     ];
   },

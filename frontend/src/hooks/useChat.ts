@@ -4,7 +4,12 @@ import { useState, useCallback, useRef } from "react";
 import type { ChatMessage, Citation } from "@/types";
 import { generateId } from "@/lib/utils";
 
-const AI_URL = process.env.NEXT_PUBLIC_AI_URL ?? "http://localhost:8001";
+// Same-origin proxy in the browser so the first-party session cookie is sent;
+// direct URL on the server. Matches the /api/aiproxy rewrite in next.config.mjs.
+const AI_URL =
+  typeof window !== "undefined"
+    ? "/api/aiproxy"
+    : process.env.NEXT_PUBLIC_AI_URL ?? "http://localhost:8001";
 
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
