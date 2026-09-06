@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AiThinking } from "@/components/AiThinking";
 import { BookOpen, Sparkles, AlertCircle, Shield, Scale, Gavel, List } from "lucide-react";
 import { aiApi } from "@/lib/api";
 
@@ -134,8 +135,11 @@ export default function StatuteBreakdownPage() {
         </div>
 
         {loading && (
-          <div className="grid grid-cols-2 gap-4">
-            {[...Array(4)].map((_, i) => <div key={i} className="vk-skeleton h-32 rounded-xl" />)}
+          <div className="space-y-3">
+            <AiThinking className="mb-1" />
+            <div className="grid grid-cols-2 gap-4">
+              {[...Array(4)].map((_, i) => <div key={i} className="vk-skeleton h-32 rounded-xl" />)}
+            </div>
           </div>
         )}
 

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AiThinking } from "@/components/AiThinking";
 import { Clock, Sparkles, AlertCircle, Calendar, FileText } from "lucide-react";
 import { aiApi } from "@/lib/api";
 
@@ -116,6 +117,7 @@ export default function EventTimelinePage() {
 
         {loading && (
           <div className="space-y-3">
+            <AiThinking className="mb-1" />
             {[...Array(5)].map((_, i) => <div key={i} className="vk-skeleton h-16 rounded-xl" />)}
           </div>
         )}

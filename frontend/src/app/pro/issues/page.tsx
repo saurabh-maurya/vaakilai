@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AiThinking } from "@/components/AiThinking";
 import { Search, Sparkles, AlertCircle, ChevronRight, BookOpen } from "lucide-react";
 import { aiApi } from "@/lib/api";
 
@@ -101,6 +102,7 @@ export default function IssueSpotterPage() {
 
         {loading && (
           <div className="space-y-3">
+            <AiThinking className="mb-1" />
             <div className="vk-skeleton h-20 rounded-xl" />
             <div className="vk-skeleton h-48 rounded-xl" />
           </div>

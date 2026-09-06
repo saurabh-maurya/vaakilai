@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AiThinking } from "@/components/AiThinking";
 import { Markdown } from "@/components/Markdown";
 import { ScrollText, Sparkles, AlertCircle, Copy, Check, ShieldCheck, WifiOff } from "lucide-react";
 import { aiApi } from "@/lib/api";
@@ -233,7 +234,12 @@ export default function NoticeDrafterPage() {
           </button>
         </div>
 
-        {loading && <div className="vk-skeleton h-64 rounded-xl" />}
+        {loading && (
+          <div className="space-y-3">
+            <AiThinking className="mb-1" />
+            <div className="vk-skeleton h-64 rounded-xl" />
+          </div>
+        )}
 
         {error && !loading && (
           <div className="vk-card p-4 flex items-start gap-3" style={{ borderColor: "rgba(248,113,113,0.35)" }}>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AiThinking } from "@/components/AiThinking";
 import { BarChart2, Sparkles, AlertCircle, TrendingUp, Scale, BookOpen, Lightbulb, ChevronDown, ChevronUp } from "lucide-react";
 import { aiApi } from "@/lib/api";
 
@@ -175,6 +176,7 @@ export default function JudgeAnalyticsPage() {
         {/* Skeletons */}
         {loading && (
           <div className="space-y-3">
+            <AiThinking className="mb-1" />
             {[...Array(5)].map((_, i) => <div key={i} className="vk-skeleton h-14 rounded-xl" />)}
           </div>
         )}

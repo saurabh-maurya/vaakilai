@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { AiThinking } from "@/components/AiThinking";
 import { Scale, Sparkles, ChevronDown, ChevronUp, AlertCircle, Copy, Check } from "lucide-react";
 import { aiApi } from "@/lib/api";
 
@@ -184,6 +185,7 @@ export default function ArgumentBuilderPage() {
 
         {loading && (
           <div className="space-y-3">
+            <AiThinking className="mb-1" />
             <div className="vk-skeleton h-40 rounded-xl" />
             <div className="vk-skeleton h-40 rounded-xl" />
           </div>

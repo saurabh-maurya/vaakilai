@@ -41,14 +41,18 @@ function ChatPageContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // Pre-fill from URL
+  // Auto-ask from URL (?q=...): send the question once, then strip it from the
+  // URL so a refresh or back-navigation doesn't re-send it.
+  const autoAskedRef = useRef(false);
   useEffect(() => {
     const q = searchParams.get("q");
-    if (q) {
-      setInput(q);
-      textareaRef.current?.focus();
+    if (q && !autoAskedRef.current) {
+      autoAskedRef.current = true;
+      setInput("");
+      void sendMessage(q);
+      router.replace("/chat");
     }
-  }, [searchParams]);
+  }, [searchParams, sendMessage, router]);
 
   const handleSend = async () => {
     const q = input.trim();
