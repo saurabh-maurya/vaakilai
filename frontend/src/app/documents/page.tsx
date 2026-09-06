@@ -6,7 +6,7 @@ import { Markdown } from "@/components/Markdown";
 import { aiConsultApi, aiApi } from "@/lib/api";
 import {
   FileText, Upload, Search, AlertTriangle, CheckCircle,
-  Download, Eye, ChevronRight, Loader2, GitCompare,
+  Download, Eye, ChevronRight, Loader2, GitCompare, ArrowLeft,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -45,6 +45,195 @@ const DOC_CATEGORIES = [
       { id: "consumer-complaint", name: "Consumer Complaint", desc: "NCDRC / district forum" },
     ],
   },
+];
+
+// Indian States & Union Territories for the jurisdiction selector.
+const INDIAN_STATES = [
+  "Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa",
+  "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala",
+  "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland",
+  "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura",
+  "Uttar Pradesh", "Uttarakhand", "West Bengal",
+  "Andaman & Nicobar Islands", "Chandigarh", "Dadra & Nagar Haveli and Daman & Diu",
+  "Delhi (NCT)", "Jammu & Kashmir", "Ladakh", "Lakshadweep", "Puducherry",
+];
+
+type DocField = {
+  key: string;
+  label: string;
+  type?: "text" | "date" | "number" | "textarea" | "select";
+  options?: string[];
+  full?: boolean;
+  placeholder?: string;
+};
+
+const STATE_FIELD: DocField = { key: "state", label: "State / Union Territory", type: "select", options: INDIAN_STATES };
+const CITY_FIELD: DocField = { key: "city", label: "City / District", placeholder: "e.g. Mumbai" };
+
+// Per-document field schemas so we capture enough to actually draft the document.
+// Documents not listed here fall back to DEFAULT_FIELDS.
+const DOC_FIELDS: Record<string, DocField[]> = {
+  "rent-agreement": [
+    { key: "landlord_name", label: "Landlord / Owner Name" },
+    { key: "landlord_address", label: "Landlord Address", type: "textarea" },
+    { key: "tenant_name", label: "Tenant Name" },
+    { key: "tenant_address", label: "Tenant Permanent Address", type: "textarea" },
+    { key: "property_address", label: "Rented Property Address", type: "textarea", full: true },
+    { key: "monthly_rent", label: "Monthly Rent (₹)", type: "number" },
+    { key: "security_deposit", label: "Security Deposit (₹)", type: "number" },
+    { key: "lease_term", label: "Lease Term", placeholder: "e.g. 11 months" },
+    { key: "lock_in_period", label: "Lock-in Period", placeholder: "e.g. 6 months" },
+    { key: "start_date", label: "Start Date", type: "date" },
+    { key: "notice_period", label: "Notice Period", placeholder: "e.g. 1 month" },
+    { key: "maintenance_by", label: "Maintenance Paid By", type: "select", options: ["Tenant", "Landlord", "Shared"] },
+    { key: "furnishing", label: "Furnishing", type: "select", options: ["Unfurnished", "Semi-furnished", "Fully furnished"] },
+    CITY_FIELD, STATE_FIELD,
+  ],
+  "sale-deed": [
+    { key: "seller_name", label: "Seller / Vendor Name" },
+    { key: "seller_address", label: "Seller Address", type: "textarea" },
+    { key: "buyer_name", label: "Buyer / Vendee Name" },
+    { key: "buyer_address", label: "Buyer Address", type: "textarea" },
+    { key: "property_description", label: "Property Description (survey no., boundaries, area)", type: "textarea", full: true },
+    { key: "sale_consideration", label: "Sale Consideration (₹)", type: "number" },
+    { key: "property_area", label: "Area", placeholder: "e.g. 1200 sq ft" },
+    { key: "execution_date", label: "Date of Execution", type: "date" },
+    CITY_FIELD, STATE_FIELD,
+  ],
+  "gift-deed": [
+    { key: "donor_name", label: "Donor Name" },
+    { key: "donor_address", label: "Donor Address", type: "textarea" },
+    { key: "donee_name", label: "Donee Name" },
+    { key: "donee_address", label: "Donee Address", type: "textarea" },
+    { key: "relationship", label: "Relationship (Donor → Donee)", placeholder: "e.g. Father to Son" },
+    { key: "property_description", label: "Property Description", type: "textarea", full: true },
+    { key: "property_value", label: "Property Value (₹)", type: "number" },
+    { key: "execution_date", label: "Date of Execution", type: "date" },
+    CITY_FIELD, STATE_FIELD,
+  ],
+  "appointment-letter": [
+    { key: "company_name", label: "Company Name" },
+    { key: "company_address", label: "Company Address", type: "textarea" },
+    { key: "employee_name", label: "Employee Name" },
+    { key: "employee_address", label: "Employee Address", type: "textarea" },
+    { key: "designation", label: "Designation" },
+    { key: "department", label: "Department" },
+    { key: "annual_ctc", label: "Annual CTC (₹)", type: "number" },
+    { key: "joining_date", label: "Joining Date", type: "date" },
+    { key: "probation_period", label: "Probation Period", placeholder: "e.g. 6 months" },
+    { key: "notice_period", label: "Notice Period", placeholder: "e.g. 2 months" },
+    { key: "work_location", label: "Work Location" },
+    CITY_FIELD, STATE_FIELD,
+  ],
+  "nda": [
+    { key: "disclosing_party", label: "Disclosing Party" },
+    { key: "disclosing_address", label: "Disclosing Party Address", type: "textarea" },
+    { key: "receiving_party", label: "Receiving Party" },
+    { key: "receiving_address", label: "Receiving Party Address", type: "textarea" },
+    { key: "purpose", label: "Purpose of Disclosure", type: "textarea", full: true },
+    { key: "confidential_scope", label: "What is Confidential", type: "textarea", full: true },
+    { key: "effective_date", label: "Effective Date", type: "date" },
+    { key: "term_duration", label: "Confidentiality Term", placeholder: "e.g. 3 years" },
+    CITY_FIELD, STATE_FIELD,
+  ],
+  "termination-letter": [
+    { key: "company_name", label: "Company Name" },
+    { key: "employee_name", label: "Employee Name" },
+    { key: "designation", label: "Designation" },
+    { key: "employment_start_date", label: "Employment Start Date", type: "date" },
+    { key: "termination_date", label: "Termination / Last Working Date", type: "date" },
+    { key: "reason", label: "Reason for Termination", type: "select", options: ["Resignation", "Performance", "Misconduct", "Redundancy", "End of Contract", "Other"] },
+    { key: "reason_details", label: "Reason Details", type: "textarea", full: true },
+    { key: "notice_period", label: "Notice Period Served", placeholder: "e.g. 30 days" },
+    { key: "final_settlement", label: "Final Settlement Notes", placeholder: "dues, F&F, etc." },
+    CITY_FIELD, STATE_FIELD,
+  ],
+  "partnership-deed": [
+    { key: "firm_name", label: "Firm Name" },
+    { key: "business_nature", label: "Nature of Business", type: "textarea", full: true },
+    { key: "partner_1_name", label: "Partner 1 Name" },
+    { key: "partner_1_contribution", label: "Partner 1 Capital (₹)", type: "number" },
+    { key: "partner_2_name", label: "Partner 2 Name" },
+    { key: "partner_2_contribution", label: "Partner 2 Capital (₹)", type: "number" },
+    { key: "additional_partners", label: "Other Partners (name & capital)", type: "textarea", full: true },
+    { key: "profit_sharing", label: "Profit Sharing Ratio", placeholder: "e.g. 50:50" },
+    { key: "commencement_date", label: "Commencement Date", type: "date" },
+    { key: "duration", label: "Duration", placeholder: "e.g. At will" },
+    CITY_FIELD, STATE_FIELD,
+  ],
+  "mou": [
+    { key: "party_1", label: "First Party" },
+    { key: "party_1_address", label: "First Party Address", type: "textarea" },
+    { key: "party_2", label: "Second Party" },
+    { key: "party_2_address", label: "Second Party Address", type: "textarea" },
+    { key: "purpose", label: "Purpose of MOU", type: "textarea", full: true },
+    { key: "scope", label: "Scope / Responsibilities", type: "textarea", full: true },
+    { key: "effective_date", label: "Effective Date", type: "date" },
+    { key: "duration", label: "Duration / Validity", placeholder: "e.g. 2 years" },
+    CITY_FIELD, STATE_FIELD,
+  ],
+  "vendor-agreement": [
+    { key: "company_name", label: "Company / Buyer Name" },
+    { key: "vendor_name", label: "Vendor / Supplier Name" },
+    { key: "vendor_address", label: "Vendor Address", type: "textarea" },
+    { key: "goods_services", label: "Goods / Services Supplied", type: "textarea", full: true },
+    { key: "contract_value", label: "Contract Value (₹)", type: "number" },
+    { key: "payment_terms", label: "Payment Terms", placeholder: "e.g. Net 30 days" },
+    { key: "delivery_terms", label: "Delivery Terms" },
+    { key: "start_date", label: "Start Date", type: "date" },
+    { key: "duration", label: "Contract Duration", placeholder: "e.g. 1 year" },
+    CITY_FIELD, STATE_FIELD,
+  ],
+  "legal-notice": [
+    { key: "sender_name", label: "Sender Name" },
+    { key: "sender_address", label: "Sender Address", type: "textarea" },
+    { key: "recipient_name", label: "Recipient Name" },
+    { key: "recipient_address", label: "Recipient Address", type: "textarea" },
+    { key: "subject", label: "Subject", full: true },
+    { key: "facts", label: "Facts / Background", type: "textarea", full: true },
+    { key: "relief_sought", label: "Relief / Demand Sought", type: "textarea", full: true },
+    { key: "amount", label: "Amount Claimed (₹, if any)", type: "number" },
+    { key: "response_days", label: "Response Deadline (days)", type: "number", placeholder: "e.g. 15" },
+    { key: "advocate_name", label: "Advocate Name (optional)" },
+    { key: "notice_date", label: "Notice Date", type: "date" },
+    CITY_FIELD, STATE_FIELD,
+  ],
+  "demand-notice": [
+    { key: "sender_name", label: "Sender / Creditor Name" },
+    { key: "sender_address", label: "Sender Address", type: "textarea" },
+    { key: "debtor_name", label: "Debtor / Recipient Name" },
+    { key: "debtor_address", label: "Debtor Address", type: "textarea" },
+    { key: "amount_due", label: "Amount Due (₹)", type: "number" },
+    { key: "due_since", label: "Due Since", type: "date" },
+    { key: "invoice_reference", label: "Invoice / Reference No." },
+    { key: "interest_rate", label: "Interest / Penalty", placeholder: "e.g. 2% per month" },
+    { key: "payment_days", label: "Payment Deadline (days)", type: "number", placeholder: "e.g. 15" },
+    { key: "facts", label: "Facts / Background", type: "textarea", full: true },
+    { key: "notice_date", label: "Notice Date", type: "date" },
+    CITY_FIELD, STATE_FIELD,
+  ],
+  "consumer-complaint": [
+    { key: "complainant_name", label: "Complainant Name" },
+    { key: "complainant_address", label: "Complainant Address", type: "textarea" },
+    { key: "opposite_party_name", label: "Opposite Party (Seller / Service Provider)" },
+    { key: "opposite_party_address", label: "Opposite Party Address", type: "textarea" },
+    { key: "product_service", label: "Product / Service" },
+    { key: "purchase_date", label: "Date of Purchase", type: "date" },
+    { key: "amount_paid", label: "Amount Paid (₹)", type: "number" },
+    { key: "deficiency", label: "Deficiency / Grievance", type: "textarea", full: true },
+    { key: "relief_sought", label: "Relief Sought", type: "textarea", full: true },
+    { key: "forum", label: "Forum", type: "select", options: ["District Commission", "State Commission", "National Commission (NCDRC)"] },
+    CITY_FIELD, STATE_FIELD,
+  ],
+};
+
+const DEFAULT_FIELDS: DocField[] = [
+  { key: "party_1", label: "First Party (Owner / Employer)" },
+  { key: "party_2", label: "Second Party (Tenant / Employee)" },
+  { key: "date", label: "Agreement Date", type: "date" },
+  { key: "amount", label: "Amount (₹)", type: "number" },
+  { key: "duration", label: "Duration / Term" },
+  CITY_FIELD, STATE_FIELD,
 ];
 
 const REVIEW_RISKS = [
@@ -195,7 +384,7 @@ export default function DocumentsPage() {
                 {cat.docs.map((doc) => (
                   <button
                     key={doc.id}
-                    onClick={() => { setSelectedDoc(doc); setMode("generate"); }}
+                    onClick={() => { setSelectedDoc(doc); setMode("generate"); setFormValues({}); setGeneratedContent(""); }}
                     className="vk-card vk-card-hover p-4 text-left group"
                   >
                     <div className="flex items-start gap-3">
@@ -219,8 +408,13 @@ export default function DocumentsPage() {
       {/* ── Generate mode ── */}
       {(mode === "generate" || (mode === "catalog" && selectedDoc)) && selectedDoc && (
         <div className="max-w-2xl mx-auto">
-          <button onClick={() => { setSelectedDoc(null); setMode("catalog"); setGeneratedContent(""); }} className="flex items-center gap-1.5 text-sm text-dim hover:text-muted mb-5 transition-colors">
-            ← Back to catalog
+          <button
+            onClick={() => { setSelectedDoc(null); setMode("catalog"); setGeneratedContent(""); setFormValues({}); }}
+            className="inline-flex items-center gap-1.5 text-sm font-medium mb-5 px-3 py-1.5 rounded-lg transition-colors hover:border-gold"
+            style={{ border: "1px solid var(--vk-border)", background: "var(--vk-navy-light)", color: "var(--vk-text)" }}
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Back to catalog
           </button>
           <div className="vk-card p-6 mb-4">
             <div className="flex items-center gap-3 mb-5">
@@ -232,26 +426,45 @@ export default function DocumentsPage() {
                 <p className="text-xs text-dim">Fill in the details to generate your document</p>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
-              {[
-                { key: "party_1", label: "First Party (Owner / Employer)" },
-                { key: "party_2", label: "Second Party (Tenant / Employee)" },
-                { key: "date", label: "Agreement Date", type: "date" },
-                { key: "jurisdiction", label: "State / Jurisdiction" },
-                { key: "amount", label: "Amount (₹)" },
-                { key: "duration", label: "Duration / Term" },
-              ].map(({ key, label, type }) => (
-                <div key={key}>
-                  <label className="vk-label">{label}</label>
-                  <input
-                    className="vk-input"
-                    type={type ?? "text"}
-                    placeholder={label}
-                    value={formValues[key] ?? ""}
-                    onChange={(e) => setFormValues((f) => ({ ...f, [key]: e.target.value }))}
-                  />
-                </div>
-              ))}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {(DOC_FIELDS[selectedDoc.id] ?? DEFAULT_FIELDS).map((field) => {
+                const value = formValues[field.key] ?? "";
+                const onChange = (v: string) => setFormValues((f) => ({ ...f, [field.key]: v }));
+                const spanFull = field.full || field.type === "textarea";
+                return (
+                  <div key={field.key} className={spanFull ? "sm:col-span-2" : ""}>
+                    <label className="vk-label">{field.label}</label>
+                    {field.type === "textarea" ? (
+                      <textarea
+                        className="vk-input resize-none"
+                        rows={3}
+                        placeholder={field.placeholder ?? field.label}
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                      />
+                    ) : field.type === "select" ? (
+                      <select
+                        className="vk-input"
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                      >
+                        <option value="">Select…</option>
+                        {field.options!.map((o) => (
+                          <option key={o} value={o}>{o}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        className="vk-input"
+                        type={field.type ?? "text"}
+                        placeholder={field.placeholder ?? field.label}
+                        value={value}
+                        onChange={(e) => onChange(e.target.value)}
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
             <button onClick={handleGenerate} disabled={generating} className="btn-primary mt-5 w-full">
               {generating ? <><Loader2 className="w-4 h-4 animate-spin" /> Generating…</> : "Generate Document"}
