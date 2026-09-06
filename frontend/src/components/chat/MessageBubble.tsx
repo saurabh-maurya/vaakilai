@@ -1,5 +1,6 @@
 import type { ChatMessage } from "@/types";
 import { Scale, AlertCircle } from "lucide-react";
+import { Markdown } from "@/components/Markdown";
 import { CitationChip } from "./CitationChip";
 import { getConfidenceLevel, getInitials } from "@/lib/utils";
 import { cn } from "@/lib/utils";
@@ -42,8 +43,8 @@ export function MessageBubble({ message }: MessageBubbleProps) {
       </div>
 
       <div className="max-w-[80%] space-y-2">
-        <div className="chat-bubble-ai whitespace-pre-wrap">
-          {message.content}
+        <div className="chat-bubble-ai">
+          <Markdown>{message.content}</Markdown>
           {message.isStreaming && (
             <span className="inline-block w-0.5 h-4 ml-0.5 bg-gold align-middle animate-pulse" />
           )}

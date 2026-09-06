@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { Markdown } from "@/components/Markdown";
 import { Gavel, Download, ExternalLink, CheckCircle, Sparkles, AlertCircle } from "lucide-react";
 import { backendApi } from "@/lib/api";
 
@@ -143,8 +144,8 @@ export default function ODRPage() {
                   <Download className="w-3.5 h-3.5" /> Download
                 </button>
               </div>
-              <div className="prose-sm rounded-xl p-4 text-sm leading-relaxed whitespace-pre-wrap" style={{ background: "rgba(255,255,255,0.03)", color: "var(--vk-text-muted)" }}>
-                {prepResult.ai_analysis}
+              <div className="rounded-xl p-4 text-sm leading-relaxed" style={{ background: "rgba(255,255,255,0.03)", color: "var(--vk-text-muted)" }}>
+                <Markdown>{prepResult.ai_analysis}</Markdown>
               </div>
             </div>
 

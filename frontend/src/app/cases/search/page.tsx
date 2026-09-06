@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { Markdown } from "@/components/Markdown";
 import { Search, Upload, FileText, ExternalLink, ChevronDown, ChevronUp, Sparkles, Filter, X, BookOpen } from "lucide-react";
 import { aiApi } from "@/lib/api";
 
@@ -194,7 +195,7 @@ export default function CaseSearchPage() {
                 <p className="text-xs font-semibold mb-1" style={{ color: "var(--vk-gold)" }}>
                   AI Summary — {results.total} cases found for &ldquo;{results.query}&rdquo;
                 </p>
-                <p className="text-sm" style={{ color: "var(--vk-text-muted)" }}>{results.ai_summary}</p>
+                <div className="text-sm" style={{ color: "var(--vk-text-muted)" }}><Markdown>{results.ai_summary}</Markdown></div>
               </div>
             </div>
           </div>

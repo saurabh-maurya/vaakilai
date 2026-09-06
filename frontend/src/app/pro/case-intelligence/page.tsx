@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { Markdown } from "@/components/Markdown";
 import { aiApi } from "@/lib/api";
 import {
   Shield, Scale, Loader2, AlertCircle, CheckCircle, AlertTriangle,
@@ -334,7 +335,7 @@ export default function CaseIntelligencePage() {
                   <AlertTriangle className="w-4 h-4 text-gold" />
                   <span className="text-sm font-semibold">AI Reasoning</span>
                 </div>
-                <p className="text-xs text-dim leading-relaxed">{predictResult.reasoning}</p>
+                <div className="text-xs text-dim leading-relaxed"><Markdown>{predictResult.reasoning}</Markdown></div>
               </div>
 
               {predictResult.similar_cases.length > 0 && (

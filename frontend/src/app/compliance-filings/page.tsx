@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { Markdown } from "@/components/Markdown";
 import { aiApi, backendApi } from "@/lib/api";
 import {
   User, Building2, LayoutDashboard, FileText, Calendar,
@@ -801,11 +802,11 @@ function AIComplianceAssistant({ mode }: { mode: EntityMode }) {
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
             <div
-              className={`rounded-2xl px-4 py-3 text-sm max-w-[80%] whitespace-pre-wrap leading-relaxed ${
-                m.role === "user" ? "chat-bubble-user" : "chat-bubble-ai"
+              className={`rounded-2xl px-4 py-3 text-sm max-w-[80%] leading-relaxed ${
+                m.role === "user" ? "chat-bubble-user whitespace-pre-wrap" : "chat-bubble-ai"
               }`}
             >
-              {m.content}
+              {m.role === "user" ? m.content : <Markdown>{m.content}</Markdown>}
             </div>
           </div>
         ))}

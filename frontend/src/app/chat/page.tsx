@@ -127,7 +127,7 @@ function ChatPageContent() {
         )}
 
         {/* Messages area */}
-        <div className="flex-1 overflow-y-auto chat-scroll space-y-5 pb-4">
+        <div className="flex-1 overflow-y-auto overflow-x-hidden chat-scroll space-y-5 pb-4 pr-2">
           {/* Advocate review CTA — appears after last AI message when not streaming */}
           {!isEmpty && !isStreaming && messages[messages.length - 1]?.role === "assistant" && (
             <div

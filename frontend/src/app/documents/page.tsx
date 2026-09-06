@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { Markdown } from "@/components/Markdown";
 import { aiConsultApi, aiApi } from "@/lib/api";
 import {
   FileText, Upload, Search, AlertTriangle, CheckCircle,
@@ -265,9 +266,9 @@ export default function DocumentsPage() {
                   <button className="btn-primary text-xs py-1.5"><Download className="w-3.5 h-3.5" /> Download</button>
                 </div>
               </div>
-              <pre className="text-xs text-dim leading-relaxed whitespace-pre-wrap font-mono max-h-60 overflow-y-auto">
-                {generatedContent}
-              </pre>
+              <div className="text-sm leading-relaxed max-h-60 overflow-y-auto pr-1">
+                <Markdown>{generatedContent}</Markdown>
+              </div>
             </div>
           )}
         </div>
@@ -350,7 +351,7 @@ export default function DocumentsPage() {
                             <span className="text-sm font-medium">{risk.clause}</span>
                             <span className={`vk-badge ${badge} capitalize text-[11px]`}>{risk.severity}</span>
                           </div>
-                          <p className="text-xs text-dim">{risk.explanation}</p>
+                          <div className="text-xs text-dim"><Markdown>{risk.explanation}</Markdown></div>
                         </div>
                       </div>
                     </div>
@@ -417,8 +418,8 @@ export default function DocumentsPage() {
                 <button onClick={() => setCompareResult(null)} className="text-xs text-dim hover:text-muted">Compare another</button>
               </div>
 
-              <div className="vk-card p-4">
-                <p className="text-sm text-dim">{compareResult.summary}</p>
+              <div className="vk-card p-4 text-sm text-dim">
+                <Markdown>{compareResult.summary}</Markdown>
               </div>
 
               {compareResult.risk_changes.length > 0 && (

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { Markdown } from "@/components/Markdown";
 import {
   Phone, FileSearch, MessageSquare, Upload, ChevronRight,
   Clock, CheckCircle, Star, Users, CalendarDays, Video,
@@ -349,7 +350,7 @@ export default function ConsultationPage() {
               {/* Summary */}
               <div className="vk-card p-4">
                 <p className="text-[10px] font-semibold uppercase tracking-widest mb-2" style={{ color: "var(--vk-text-dim)" }}>Summary</p>
-                <p className="text-sm leading-relaxed" style={{ color: "var(--vk-text-muted)" }}>{reviewResult.summary}</p>
+                <div className="text-sm leading-relaxed" style={{ color: "var(--vk-text-muted)" }}><Markdown>{reviewResult.summary}</Markdown></div>
               </div>
 
               {/* Risks */}

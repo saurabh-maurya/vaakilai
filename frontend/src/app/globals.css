@@ -227,6 +227,93 @@
     line-height: 1.7;
   }
 
+  /* ── Markdown rendering inside AI bubble ── */
+  .vk-markdown {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .vk-markdown > *:first-child { margin-top: 0; }
+  .vk-markdown > *:last-child { margin-bottom: 0; }
+  .vk-markdown p { margin: 0.5rem 0; }
+  .vk-markdown h1,
+  .vk-markdown h2,
+  .vk-markdown h3,
+  .vk-markdown h4 {
+    color: var(--vk-gold-light);
+    font-weight: 600;
+    line-height: 1.35;
+    margin: 1rem 0 0.5rem;
+  }
+  .vk-markdown h1 { font-size: 1.05rem; }
+  .vk-markdown h2 { font-size: 1rem; }
+  .vk-markdown h3 { font-size: 0.95rem; }
+  .vk-markdown h4 { font-size: 0.9rem; }
+  .vk-markdown strong { color: var(--vk-text); font-weight: 600; }
+  .vk-markdown em { font-style: italic; }
+  .vk-markdown ul,
+  .vk-markdown ol {
+    margin: 0.5rem 0;
+    padding-left: 1.35rem;
+  }
+  .vk-markdown ul { list-style: disc; }
+  .vk-markdown ol { list-style: decimal; }
+  .vk-markdown li { margin: 0.25rem 0; }
+  .vk-markdown li::marker { color: var(--vk-gold); }
+  .vk-markdown a {
+    color: var(--vk-gold);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  .vk-markdown a:hover { color: var(--vk-gold-light); }
+  .vk-markdown code {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: 0.85em;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid var(--vk-border);
+    border-radius: 4px;
+    padding: 0.1em 0.35em;
+  }
+  .vk-markdown pre {
+    background: var(--vk-navy);
+    border: 1px solid var(--vk-border);
+    border-radius: 8px;
+    padding: 0.75rem;
+    margin: 0.6rem 0;
+    overflow-x: auto;
+  }
+  .vk-markdown pre code {
+    background: transparent;
+    border: none;
+    padding: 0;
+    font-size: 0.82em;
+  }
+  .vk-markdown blockquote {
+    border-left: 3px solid var(--vk-gold);
+    padding-left: 0.75rem;
+    margin: 0.6rem 0;
+    color: var(--vk-text-muted);
+  }
+  .vk-markdown hr {
+    border: none;
+    border-top: 1px solid var(--vk-border);
+    margin: 0.9rem 0;
+  }
+  .vk-markdown table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    border-collapse: collapse;
+    margin: 0.6rem 0;
+    font-size: 0.85em;
+  }
+  .vk-markdown th,
+  .vk-markdown td {
+    border: 1px solid var(--vk-border);
+    padding: 0.4rem 0.6rem;
+    text-align: left;
+  }
+  .vk-markdown th { color: var(--vk-text-dim); font-weight: 600; }
+
   /* ── Citation chips ── */
   .vk-cite {
     @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-mono cursor-pointer transition-colors;

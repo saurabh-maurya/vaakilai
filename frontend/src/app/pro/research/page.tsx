@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { Markdown } from "@/components/Markdown";
 import { aiConsultApi } from "@/lib/api";
 import type { JudgmentResult, PrecedentResult } from "@/types";
 import { PRACTICE_AREAS } from "@/lib/utils";
@@ -187,10 +188,8 @@ export default function ResearchPage() {
                   <button className="btn-primary text-xs py-1.5">Export PDF</button>
                 </div>
               </div>
-              <div className="prose prose-invert prose-sm max-w-none">
-                <pre className="text-xs text-dim leading-relaxed whitespace-pre-wrap font-sans max-h-96 overflow-y-auto">
-                  {memo}
-                </pre>
+              <div className="text-sm leading-relaxed max-h-96 overflow-y-auto pr-1">
+                <Markdown>{memo}</Markdown>
               </div>
             </div>
           )}

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { Markdown } from "@/components/Markdown";
 import { ScrollText, Sparkles, AlertCircle, Copy, Check, ShieldCheck, WifiOff } from "lucide-react";
 import { aiApi } from "@/lib/api";
 
@@ -259,13 +260,8 @@ export default function NoticeDrafterPage() {
               </div>
             </div>
 
-            <div className="vk-card p-6">
-              <pre
-                className="whitespace-pre-wrap text-sm leading-relaxed font-sans"
-                style={{ color: "var(--vk-text)" }}
-              >
-                {result.notice_text}
-              </pre>
+            <div className="vk-card p-6 text-sm leading-relaxed" style={{ color: "var(--vk-text)" }}>
+              <Markdown>{result.notice_text}</Markdown>
             </div>
 
             <div className="vk-disclaimer rounded-xl p-4 text-xs text-dim">
