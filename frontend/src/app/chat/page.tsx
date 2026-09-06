@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
@@ -9,6 +9,7 @@ import { useChat } from "@/hooks/useChat";
 import { PRACTICE_AREAS, INDIAN_STATES } from "@/lib/utils";
 import {
   Send, StopCircle, Trash2, Mic, Scale, SlidersHorizontal, PhoneCall, ChevronRight,
+  ArrowLeft, PenSquare,
 } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
@@ -24,6 +25,7 @@ const STARTER_PROMPTS = [
 
 function ChatPageContent() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const {
     messages, isStreaming, jurisdiction, setJurisdiction,
     practiceArea, setPracticeArea, sendMessage, clearMessages, stopStreaming,
@@ -67,6 +69,13 @@ function ChatPageContent() {
     textareaRef.current?.focus();
   };
 
+  const handleNewChat = () => {
+    if (isStreaming) stopStreaming();
+    clearMessages();
+    setInput("");
+    textareaRef.current?.focus();
+  };
+
   const isEmpty = messages.length === 0;
 
   return (
@@ -76,16 +85,33 @@ function ChatPageContent() {
       actions={
         <div className="flex items-center gap-2">
           <button
+            onClick={() => router.back()}
+            className="btn-ghost flex items-center gap-1.5 text-xs text-dim"
+            title="Go back"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back
+          </button>
+          <button
             onClick={() => setShowFilters((v) => !v)}
             className={`btn-ghost flex items-center gap-1.5 text-xs ${showFilters ? "text-gold" : ""}`}
           >
             <SlidersHorizontal className="w-3.5 h-3.5" />
             Filters
           </button>
+          <button
+            onClick={handleNewChat}
+            className="btn-ghost flex items-center gap-1.5 text-xs text-dim hover:text-gold"
+            title="Start a fresh conversation"
+          >
+            <PenSquare className="w-3.5 h-3.5" />
+            New Chat
+          </button>
           {messages.length > 0 && (
             <button
               onClick={clearMessages}
               className="btn-ghost flex items-center gap-1.5 text-xs text-dim hover:text-red-400"
+              title="Clear all messages"
             >
               <Trash2 className="w-3.5 h-3.5" />
               Clear
