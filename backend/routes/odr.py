@@ -143,6 +143,8 @@ async def submit_odr_case(
         }
 
     result = await db.odr_cases.insert_one(doc)
+    # insert_one mutates doc with an ObjectId _id which isn't JSON-serializable
+    doc.pop("_id", None)
     doc["id"] = str(result.inserted_id)
     return doc
 

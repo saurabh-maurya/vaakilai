@@ -70,6 +70,7 @@ async def create_compliance_item(
         "created_at": datetime.utcnow(),
     }
     result = await db.compliance_items.insert_one(doc)
+    doc.pop("_id", None)  # insert_one adds a non-serializable ObjectId _id
     doc["id"] = str(result.inserted_id)
     return doc
 
@@ -183,6 +184,7 @@ async def setup_corporate_compliance(
             "created_at": now,
         }
         result = await db.compliance_items.insert_one(doc)
+        doc.pop("_id", None)  # insert_one adds a non-serializable ObjectId _id
         doc["id"] = str(result.inserted_id)
         created.append(doc)
 

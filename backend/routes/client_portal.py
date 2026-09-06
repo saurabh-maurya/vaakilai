@@ -138,6 +138,7 @@ async def send_message_to_lawyer(
         "read": False,
     }
     result = await db.case_messages.insert_one(msg)
+    msg.pop("_id", None)  # insert_one adds a non-serializable ObjectId _id
     msg["id"] = str(result.inserted_id)
     return msg
 

@@ -250,12 +250,26 @@ export const billingApi = {
 export const aiConsultApi = {
 
   consult: async (query: string, practiceArea?: string): Promise<{ answer: string; citations?: unknown[]; confidence?: number }> => {
-    const { data } = await aiApi.post<{ answer: string; citations?: unknown[]; confidence?: number }>(
-      "/ai/consult",
-      { query, practice_area: practiceArea ?? "" },
-      { timeout: 90_000 }
-    );
-    return data;
+    const body = { query, practice_area: practiceArea ?? "" };
+    // Retry with backoff so a cold-started AI service (Render free tier spins
+    // down when idle and returns 502/timeouts while waking) self-heals instead
+    // of failing on the first request. Only retry transient failures.
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const { data } = await aiApi.post<{ answer: string; citations?: unknown[]; confidence?: number }>(
+          "/ai/consult", body, { timeout: 90_000 }
+        );
+        return data;
+      } catch (err) {
+        lastErr = err;
+        const status = (err as { response?: { status?: number } }).response?.status;
+        const transient = status === undefined || status === 502 || status === 503 || status === 504;
+        if (!transient || attempt === 2) throw err;
+        await new Promise((r) => setTimeout(r, 3000 * (attempt + 1))); // 3s, then 6s
+      }
+    }
+    throw lastErr;
   },
 
   generate: async (templateId: string, fields: Record<string, string>): Promise<{ content: string; download_url?: string }> => {

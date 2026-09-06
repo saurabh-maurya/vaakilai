@@ -55,6 +55,7 @@ async def create_video_room(
         "status": "active",
     }
     result = await db.video_rooms.insert_one(doc)
+    doc.pop("_id", None)  # insert_one adds a non-serializable ObjectId _id
     doc["id"] = str(result.inserted_id)
     return doc
 
