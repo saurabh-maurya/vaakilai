@@ -65,7 +65,7 @@ async def create_compliance_item(
     db = get_db()
     doc = {
         **body.model_dump(),
-        "user_id": str(current_user["sub"]),
+        "user_id": str(current_user["user_id"]),
         "status": "pending",
         "created_at": datetime.utcnow(),
     }
@@ -82,7 +82,7 @@ async def list_compliance_items(
     current_user: dict = Depends(get_current_user),
 ):
     db = get_db()
-    query: dict = {"user_id": str(current_user["sub"])}
+    query: dict = {"user_id": str(current_user["user_id"])}
     if category:
         query["category"] = category
     if status:
@@ -113,7 +113,7 @@ async def upcoming_deadlines(
 
     items = []
     async for doc in db.compliance_items.find({
-        "user_id": str(current_user["sub"]),
+        "user_id": str(current_user["user_id"]),
         "due_date": {"$gte": now, "$lte": cutoff},
         "status": {"$ne": "completed"},
     }).sort("due_date", 1):
@@ -131,7 +131,7 @@ async def mark_complete(
 ):
     db = get_db()
     result = await db.compliance_items.update_one(
-        {"_id": ObjectId(item_id), "user_id": str(current_user["sub"])},
+        {"_id": ObjectId(item_id), "user_id": str(current_user["user_id"])},
         {"$set": {"status": "completed", "completed_at": datetime.utcnow()}},
     )
     if result.matched_count == 0:
@@ -174,7 +174,7 @@ async def setup_corporate_compliance(
             continue
 
         doc = {
-            "user_id": str(current_user["sub"]),
+            "user_id": str(current_user["user_id"]),
             "name": f"{template['name']} — {company_name}",
             "category": template["category"],
             "due_date": due_date.isoformat(),

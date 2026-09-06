@@ -50,7 +50,7 @@ async def create_video_room(
         "room_name": room_name,
         "room_url": room_url,
         "jitsi_domain": jitsi_domain,
-        "created_by": str(current_user["sub"]),
+        "created_by": str(current_user["user_id"]),
         "created_at": datetime.utcnow(),
         "status": "active",
     }

@@ -44,7 +44,7 @@ async def client_dashboard(current_user: dict = Depends(get_current_user)):
 
     # Find consultations
     consultations = []
-    async for doc in db.consultations.find({"consumer_id": str(current_user["sub"])}).sort("created_at", -1).limit(10):
+    async for doc in db.consultations.find({"consumer_id": str(current_user["user_id"])}).sort("created_at", -1).limit(10):
         doc["id"] = str(doc.pop("_id"))
         consultations.append(doc)
 
@@ -130,7 +130,7 @@ async def send_message_to_lawyer(
 
     msg = {
         "case_id": body.case_id,
-        "from_user_id": str(current_user["sub"]),
+        "from_user_id": str(current_user["user_id"]),
         "from_email": current_user.get("email"),
         "from_role": "client",
         "message": body.message,
@@ -176,7 +176,7 @@ async def invite_client(
 
     db = get_db()
     invite = {
-        "lawyer_id": str(current_user["sub"]),
+        "lawyer_id": str(current_user["user_id"]),
         "client_email": body.client_email,
         "client_name": body.client_name,
         "case_id": body.case_id,

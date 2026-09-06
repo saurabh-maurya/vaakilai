@@ -118,7 +118,7 @@ async def submit_odr_case(
     db = get_db()
 
     doc = {
-        "user_id": str(current_user["sub"]),
+        "user_id": str(current_user["user_id"]),
         **body.model_dump(),
         "status": "draft",
         "created_at": datetime.utcnow(),
@@ -153,7 +153,7 @@ async def submit_odr_case(
 async def my_odr_cases(current_user: dict = Depends(get_current_user)):
     db = get_db()
     cases = []
-    async for doc in db.odr_cases.find({"user_id": str(current_user["sub"])}).sort("created_at", -1):
+    async for doc in db.odr_cases.find({"user_id": str(current_user["user_id"])}).sort("created_at", -1):
         doc["id"] = str(doc.pop("_id"))
         cases.append(doc)
     return {"cases": cases, "total": len(cases)}
