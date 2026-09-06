@@ -25,6 +25,11 @@ class CaseTrackRequest(BaseModel):
     court_type: str = "district"   # district | high_court | supreme_court
     state: str = ""
     district: str = ""
+    city: str = ""
+    # When True, verify the case against the free eCourts API before saving.
+    # When False (or when the API can't confirm it), the case is saved manually
+    # and marked as not validated.
+    validate_on_ecourt: bool = False
     # Manual fields (fallback if API not available)
     case_title: Optional[str] = None
     next_hearing_date: Optional[str] = None
@@ -60,19 +65,30 @@ async def track_case(
     body: CaseTrackRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """Add a case to track — tries eCourts API first, falls back to manual."""
+    """Add a case to track.
+
+    If ``validate_on_ecourt`` is set we try the free eCourts API and, when it
+    confirms the case, save the fetched details and mark it validated. Otherwise
+    (checkbox off, or the API can't confirm) we save the manual details and mark
+    it as not validated.
+    """
     db = get_db()
 
-    # Try API
-    api_data = await _fetch_from_api(body.case_number, body.state, body.district)
+    # Only hit the eCourts API when the user asked us to validate.
+    api_data = None
+    if body.validate_on_ecourt:
+        api_data = await _fetch_from_api(body.case_number, body.state, body.district)
+
+    now = datetime.utcnow()
 
     if api_data:
         doc = {
-            "user_id": str(current_user["sub"]),
+            "user_id": str(current_user["user_id"]),
             "case_number": body.case_number,
             "court_type": body.court_type,
             "state": body.state,
             "district": body.district,
+            "city": body.city,
             "case_title": api_data.get("case_title") or api_data.get("title", ""),
             "petitioner": api_data.get("petitioner", ""),
             "respondent": api_data.get("respondent", ""),
@@ -81,30 +97,37 @@ async def track_case(
             "case_status": api_data.get("status", "Pending"),
             "last_orders": api_data.get("orders", []),
             "source": "api",
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+            "validated": True,
+            "validated_at": now,
+            "created_at": now,
+            "updated_at": now,
         }
     else:
-        # Manual fallback
+        # Manual entry — either the checkbox was off, or validation failed.
         doc = {
-            "user_id": str(current_user["sub"]),
+            "user_id": str(current_user["user_id"]),
             "case_number": body.case_number,
             "court_type": body.court_type,
             "state": body.state,
             "district": body.district,
+            "city": body.city,
             "case_title": body.case_title or "",
             "next_hearing_date": body.next_hearing_date or "",
             "court_name": body.court_name or "",
             "case_status": "Pending",
             "last_orders": [],
             "source": "manual",
-            "created_at": datetime.utcnow(),
-            "updated_at": datetime.utcnow(),
+            "validated": False,
+            "validated_at": None,
+            # True when the user wanted validation but the API couldn't confirm.
+            "validation_failed": bool(body.validate_on_ecourt),
+            "created_at": now,
+            "updated_at": now,
         }
 
     result = await db.tracked_cases.insert_one(doc)
     doc["id"] = str(result.inserted_id)
-    return {"data": doc, "source": doc["source"]}
+    return {"data": doc, "source": doc["source"], "validated": doc["validated"]}
 
 
 @router.get("/my")
@@ -112,7 +135,7 @@ async def my_tracked_cases(current_user: dict = Depends(get_current_user)):
     """Get all cases tracked by the current user."""
     db = get_db()
     cases = []
-    async for doc in db.tracked_cases.find({"user_id": str(current_user["sub"])}):
+    async for doc in db.tracked_cases.find({"user_id": str(current_user["user_id"])}):
         doc["id"] = str(doc.pop("_id"))
         cases.append(doc)
     return {"cases": cases, "total": len(cases)}
@@ -145,7 +168,7 @@ async def update_hearing(
     """Manually update next hearing date."""
     db = get_db()
     result = await db.tracked_cases.update_one(
-        {"_id": ObjectId(tracked_id), "user_id": str(current_user["sub"])},
+        {"_id": ObjectId(tracked_id), "user_id": str(current_user["user_id"])},
         {"$set": {"next_hearing_date": body.next_hearing_date, "notes": body.notes, "updated_at": datetime.utcnow()}},
     )
     if result.matched_count == 0:
@@ -160,7 +183,7 @@ async def untrack_case(
 ):
     db = get_db()
     await db.tracked_cases.delete_one(
-        {"_id": ObjectId(tracked_id), "user_id": str(current_user["sub"])}
+        {"_id": ObjectId(tracked_id), "user_id": str(current_user["user_id"])}
     )
     return {"message": "Case removed from tracking"}
 

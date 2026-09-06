@@ -2,9 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Landmark, Plus, RefreshCw, Calendar, AlertCircle, CheckCircle, Trash2, Edit2 } from "lucide-react";
+import { Landmark, Plus, RefreshCw, Calendar, ShieldCheck, ShieldAlert, Trash2, Edit2 } from "lucide-react";
+import toast from "react-hot-toast";
 import { backendApi } from "@/lib/api";
-import { formatDate } from "@/lib/utils";
+import {
+  INDIAN_STATES_UT, districtsOf, citiesOf, OTHER_OPTION,
+} from "@/lib/indiaLocations";
 
 interface TrackedCase {
   id: string;
@@ -13,15 +16,18 @@ interface TrackedCase {
   court_name: string;
   court_type: string;
   state: string;
+  district?: string;
+  city?: string;
   case_status: string;
   next_hearing_date: string;
   source: string;
+  validated?: boolean;
+  validation_failed?: boolean;
   updated_at: string;
   days_remaining?: number;
 }
 
 const COURT_TYPES = ["district", "high_court", "supreme_court", "tribunal", "consumer_forum"];
-const STATES = ["Delhi", "Maharashtra", "Karnataka", "Tamil Nadu", "Uttar Pradesh", "Gujarat", "Rajasthan", "West Bengal", "Andhra Pradesh", "Kerala", "Other"];
 
 export default function ECourtsPage() {
   const [cases, setCases] = useState<TrackedCase[]>([]);
@@ -29,11 +35,51 @@ export default function ECourtsPage() {
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({
-    case_number: "", court_type: "district", state: "", district: "",
-    case_title: "", next_hearing_date: "", court_name: "",
+    case_number: "", court_type: "district", state: "", district: "", city: "",
+    case_title: "", next_hearing_date: "", court_name: "", validate_on_ecourt: false,
   });
+  // "Other…" free-text mode for district / city when not in the list.
+  const [districtOther, setDistrictOther] = useState(false);
+  const [cityOther, setCityOther] = useState(false);
   const [saving, setSaving] = useState(false);
   const [hearingForm, setHearingForm] = useState({ date: "", notes: "" });
+
+  const districtOptions = form.state ? districtsOf(form.state) : [];
+  const cityOptions = form.state && form.district ? citiesOf(form.state, form.district) : [];
+
+  const resetForm = () => {
+    setForm({
+      case_number: "", court_type: "district", state: "", district: "", city: "",
+      case_title: "", next_hearing_date: "", court_name: "", validate_on_ecourt: false,
+    });
+    setDistrictOther(false);
+    setCityOther(false);
+  };
+
+  const onStateChange = (state: string) => {
+    setForm(f => ({ ...f, state, district: "", city: "" }));
+    setDistrictOther(false);
+    setCityOther(false);
+  };
+  const onDistrictChange = (val: string) => {
+    if (val === OTHER_OPTION) {
+      setDistrictOther(true);
+      setForm(f => ({ ...f, district: "", city: "" }));
+    } else {
+      setDistrictOther(false);
+      setForm(f => ({ ...f, district: val, city: "" }));
+    }
+    setCityOther(false);
+  };
+  const onCityChange = (val: string) => {
+    if (val === OTHER_OPTION) {
+      setCityOther(true);
+      setForm(f => ({ ...f, city: "" }));
+    } else {
+      setCityOther(false);
+      setForm(f => ({ ...f, city: val }));
+    }
+  };
 
   const load = async () => {
     try {
@@ -54,11 +100,21 @@ export default function ECourtsPage() {
   const handleAdd = async () => {
     setSaving(true);
     try {
-      await backendApi.post("/ecourts/track", form);
+      const { data } = await backendApi.post("/ecourts/track", form);
+      const wantedValidation = form.validate_on_ecourt;
       setShowAdd(false);
-      setForm({ case_number: "", court_type: "district", state: "", district: "", case_title: "", next_hearing_date: "", court_name: "" });
+      resetForm();
+      if (data?.validated) {
+        toast.success("Case validated on eCourts and saved");
+      } else if (wantedValidation) {
+        toast("Couldn't validate on eCourts — saved manually (not validated)", { icon: "⚠️" });
+      } else {
+        toast.success("Case saved (not validated)");
+      }
       load();
-    } catch { } finally { setSaving(false); }
+    } catch {
+      toast.error("Failed to save case. Please try again.");
+    } finally { setSaving(false); }
   };
 
   const handleDelete = async (id: string) => {
@@ -112,17 +168,57 @@ export default function ECourtsPage() {
                 </select>
               </div>
               <div>
-                <label className="vk-label">State</label>
-                <select className="vk-input w-full" value={form.state} onChange={e => setForm(f => ({ ...f, state: e.target.value }))}>
-                  <option value="">Select state</option>
-                  {STATES.map(s => <option key={s} value={s}>{s}</option>)}
+                <label className="vk-label">State / UT</label>
+                <select className="vk-input w-full" value={form.state} onChange={e => onStateChange(e.target.value)}>
+                  <option value="">Select state / UT</option>
+                  {INDIAN_STATES_UT.map(s => <option key={s} value={s}>{s}</option>)}
                 </select>
               </div>
               <div>
                 <label className="vk-label">District</label>
-                <input className="vk-input w-full" placeholder="e.g. South Delhi" value={form.district} onChange={e => setForm(f => ({ ...f, district: e.target.value }))} />
+                {form.state && districtOptions.length > 0 && !districtOther ? (
+                  <select
+                    className="vk-input w-full"
+                    value={form.district || ""}
+                    onChange={e => onDistrictChange(e.target.value)}
+                  >
+                    <option value="">Select district</option>
+                    {districtOptions.map(d => <option key={d} value={d}>{d}</option>)}
+                    <option value={OTHER_OPTION}>Other…</option>
+                  </select>
+                ) : (
+                  <input
+                    className="vk-input w-full"
+                    placeholder={form.state ? "Type district name" : "Select a state first"}
+                    disabled={!form.state}
+                    value={form.district}
+                    onChange={e => setForm(f => ({ ...f, district: e.target.value }))}
+                  />
+                )}
               </div>
-              <div className="col-span-2">
+              <div>
+                <label className="vk-label">City</label>
+                {form.district && cityOptions.length > 0 && !cityOther ? (
+                  <select
+                    className="vk-input w-full"
+                    value={form.city || ""}
+                    onChange={e => onCityChange(e.target.value)}
+                  >
+                    <option value="">Select city</option>
+                    {cityOptions.map(c => <option key={c} value={c}>{c}</option>)}
+                    <option value={OTHER_OPTION}>Other…</option>
+                  </select>
+                ) : (
+                  <input
+                    className="vk-input w-full"
+                    placeholder={form.district ? "Type city name" : "Select a district first"}
+                    disabled={!form.district && !districtOther}
+                    value={form.city}
+                    onChange={e => setForm(f => ({ ...f, city: e.target.value }))}
+                  />
+                )}
+              </div>
+              <div>
                 <label className="vk-label">Case Title (optional)</label>
                 <input className="vk-input w-full" placeholder="e.g. ABC vs XYZ" value={form.case_title} onChange={e => setForm(f => ({ ...f, case_title: e.target.value }))} />
               </div>
@@ -135,11 +231,25 @@ export default function ECourtsPage() {
                 <input className="vk-input w-full" placeholder="e.g. Delhi High Court" value={form.court_name} onChange={e => setForm(f => ({ ...f, court_name: e.target.value }))} />
               </div>
             </div>
-            <div className="vk-disclaimer rounded-lg p-3 text-xs text-dim">
-              We&apos;ll try the free eCourts API first. If unavailable, manual details will be used.
-            </div>
+            {/* Validate on eCourts */}
+            <label className="flex items-start gap-2.5 cursor-pointer select-none p-3 rounded-lg" style={{ background: "var(--vk-navy-light)", border: "1px solid var(--vk-border)" }}>
+              <input
+                type="checkbox"
+                className="mt-0.5 w-4 h-4 accent-[var(--vk-gold)] cursor-pointer"
+                checked={form.validate_on_ecourt}
+                onChange={e => setForm(f => ({ ...f, validate_on_ecourt: e.target.checked }))}
+              />
+              <span className="text-xs">
+                <span className="font-semibold" style={{ color: "var(--vk-text)" }}>Validate on eCourts</span>
+                <span className="text-dim block mt-0.5">
+                  When checked, we verify the case against the free eCourts API before saving.
+                  If it can&apos;t be confirmed (or this is left unchecked), the case is saved
+                  manually and marked <span className="font-medium">Not validated</span>.
+                </span>
+              </span>
+            </label>
             <div className="flex gap-2 justify-end">
-              <button className="btn-secondary text-xs py-2 px-4" onClick={() => setShowAdd(false)}>Cancel</button>
+              <button className="btn-secondary text-xs py-2 px-4" onClick={() => { setShowAdd(false); resetForm(); }}>Cancel</button>
               <button className="btn-primary text-xs py-2 px-4" onClick={handleAdd} disabled={saving || !form.case_number}>
                 {saving ? "Saving..." : "Track Case"}
               </button>
@@ -166,10 +276,22 @@ export default function ECourtsPage() {
                       <span className="font-semibold text-sm" style={{ color: "var(--vk-text)" }}>{c.case_number}</span>
                       <span className="vk-badge vk-badge-muted text-[10px]">{c.court_type.replace("_", " ")}</span>
                       <span className={`vk-badge text-[10px] ${c.case_status === "Disposed" ? "vk-badge-green" : "vk-badge-blue"}`}>{c.case_status}</span>
-                      {c.source === "manual" && <span className="vk-badge vk-badge-muted text-[10px]">Manual</span>}
+                      {c.validated ? (
+                        <span className="vk-badge vk-badge-green text-[10px] flex items-center gap-1">
+                          <ShieldCheck className="w-3 h-3" /> eCourts Validated
+                        </span>
+                      ) : (
+                        <span className="vk-badge vk-badge-gold text-[10px] flex items-center gap-1" title={c.validation_failed ? "Validation was attempted but eCourts couldn't confirm this case" : "Saved manually — not validated on eCourts"}>
+                          <ShieldAlert className="w-3 h-3" /> Not validated
+                        </span>
+                      )}
                     </div>
                     {c.case_title && <p className="text-xs text-dim mt-1">{c.case_title}</p>}
-                    {c.court_name && <p className="text-[11px] text-dim">{c.court_name} {c.state ? `· ${c.state}` : ""}</p>}
+                    {(c.court_name || c.city || c.district || c.state) && (
+                      <p className="text-[11px] text-dim">
+                        {[c.court_name, c.city, c.district, c.state].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
                   </div>
                   <div className="flex items-center gap-1.5">
                     <button className="p-1.5 rounded hover:bg-white/10 text-dim" onClick={() => setEditingId(c.id)}>
