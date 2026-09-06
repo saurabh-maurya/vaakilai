@@ -126,6 +126,9 @@ async def track_case(
         }
 
     result = await db.tracked_cases.insert_one(doc)
+    # insert_one mutates ``doc`` to add an ObjectId ``_id`` that isn't
+    # JSON-serializable — replace it with a string ``id`` before returning.
+    doc.pop("_id", None)
     doc["id"] = str(result.inserted_id)
     return {"data": doc, "source": doc["source"], "validated": doc["validated"]}
 
