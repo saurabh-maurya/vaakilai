@@ -82,6 +82,35 @@ _cache: dict = {"articles": [], "fetched_at": None}
 CACHE_TTL = timedelta(minutes=15)
 
 
+# Keyword-based classification so live RSS items get real categories instead of
+# inheriting a single source-level category (which broke category filtering).
+# Checked in order; first match wins, else "general".
+CATEGORY_KEYWORDS: list[tuple[str, tuple[str, ...]]] = [
+    ("constitutional", ("constitution", "fundamental right", "article 14", "article 19",
+                         "article 21", "article 32", "writ", "basic structure", "preamble")),
+    ("corporate", ("sebi", "nclt", "nclat", "ibc", "insolvency", "merger", "acquisition",
+                   "shareholder", "companies act", "company law", "securities", "ipo",
+                   "corporate", "cci", "competition commission")),
+    ("criminal", ("bail", "fir", "murder", "rape", "accused", "prosecution", "acquit",
+                  "convict", "criminal", "ipc", "bns", "crpc", "bnss", "cbi",
+                  "enforcement directorate", "pmla", "narcotics", "custody")),
+    ("consumer", ("consumer", "ncdrc", "deficiency in service", "consumer protection")),
+    ("technology", ("data protection", "privacy", "cyber", "it act", "information technology",
+                    "digital personal data", "artificial intelligence", "social media",
+                    "whatsapp", "deepfake", "intermediary")),
+    ("legislation", ("amendment", "bill", "sanhita", "ordinance", "notification",
+                     "gazette", "parliament", "lok sabha", "rajya sabha")),
+]
+
+
+def _classify(title: str, summary: str) -> str:
+    text = f"{title} {summary}".lower()
+    for cat, keywords in CATEGORY_KEYWORDS:
+        if any(kw in text for kw in keywords):
+            return cat
+    return "general"
+
+
 def _parse_rss(xml_text: str, source_name: str, category: str) -> list[dict]:
     articles = []
     try:
@@ -105,7 +134,7 @@ def _parse_rss(xml_text: str, source_name: str, category: str) -> list[dict]:
                 "id": f"{source_name[:3].lower()}{idx}",
                 "title": title,
                 "source": source_name,
-                "category": category,
+                "category": _classify(title, summary),
                 "published_at": pub,
                 "url": link,
                 "summary": summary,

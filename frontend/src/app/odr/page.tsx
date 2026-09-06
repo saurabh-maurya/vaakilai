@@ -5,6 +5,7 @@ import { AppLayout } from "@/components/layout/AppLayout";
 import { Markdown } from "@/components/Markdown";
 import { Gavel, Download, ExternalLink, CheckCircle, Sparkles, AlertCircle } from "lucide-react";
 import { backendApi } from "@/lib/api";
+import toast from "react-hot-toast";
 
 const MATTER_TYPES = [
   "Motor Accident Claim", "Consumer Dispute", "Cheque Bounce (Sec 138 NI Act)",
@@ -41,10 +42,12 @@ export default function ODRPage() {
       const { data } = await backendApi.post("/odr/prepare", {
         ...wizardForm,
         claim_amount: wizardForm.claim_amount ? parseFloat(wizardForm.claim_amount) : null,
-      });
+      }, { timeout: 90_000 });
       setPrepResult(data);
       setStep(2);
-    } catch { } finally { setLoading(false); }
+    } catch {
+      toast.error("Couldn't generate the preparation. The service may be waking up — please try again in a moment.");
+    } finally { setLoading(false); }
   };
 
   const handleSubmit = async () => {
@@ -54,10 +57,12 @@ export default function ODRPage() {
         ...wizardForm,
         ...submitForm,
         claim_amount: wizardForm.claim_amount ? parseFloat(wizardForm.claim_amount) : null,
-      });
+      }, { timeout: 90_000 });
       setSubmitResult(data);
       setStep(3);
-    } catch { } finally { setLoading(false); }
+    } catch {
+      toast.error("Couldn't submit the case. Please try again in a moment.");
+    } finally { setLoading(false); }
   };
 
   const handleDownload = () => {

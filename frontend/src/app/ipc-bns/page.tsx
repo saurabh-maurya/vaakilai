@@ -2,12 +2,14 @@
 
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { ArrowLeftRight, Search, ChevronRight, BookOpen, AlertCircle } from "lucide-react";
-import { backendApi } from "@/lib/api";
+import { ArrowLeftRight, Search, BookOpen, AlertCircle, Sparkles, ChevronDown, ExternalLink, Send } from "lucide-react";
+import { backendApi, aiConsultApi } from "@/lib/api";
+import { Markdown } from "@/components/Markdown";
+import { AiThinking } from "@/components/AiThinking";
 
 interface BNSEntry {
-  ipc: string;
-  bns: string;
+  ipc_section: string;
+  bns_section: string;
   title: string;
   category: string;
   notes: string;
@@ -37,20 +39,75 @@ function getCategoryColor(category: string): string {
   return CATEGORY_COLORS[category] ?? "var(--vk-gold)";
 }
 
+// Official government full-act sources (verified reachable). India Code serves
+// its per-section pages via an unscrapeable SPA, so we link the authoritative
+// bare-act PDFs and layer AI explanation + Q&A on top.
+const IPC_OFFICIAL_PDF = "https://www.indiacode.nic.in/bitstream/123456789/15289/1/ipc_act.pdf";
+const BNS_OFFICIAL_PDF = "https://www.mha.gov.in/sites/default/files/250883_english_01042024.pdf";
+
 function EntryCard({ entry }: { entry: BNSEntry }) {
   const color = getCategoryColor(entry.category);
+  const [open, setOpen] = useState(false);
+  const [detail, setDetail] = useState("");
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [qa, setQa] = useState<{ q: string; a: string }[]>([]);
+  const [question, setQuestion] = useState("");
+  const [asking, setAsking] = useState(false);
+
+  const context =
+    `IPC Section ${entry.ipc_section} ("${entry.title}"), its Bharatiya Nyaya Sanhita 2023 ` +
+    `equivalent BNS Section ${entry.bns_section}, category ${entry.category}` +
+    `${entry.notes ? `. Note: ${entry.notes}` : ""}`;
+
+  const toggleDetail = async () => {
+    if (open) { setOpen(false); return; }
+    setOpen(true);
+    if (detail) return; // already fetched
+    setLoadingDetail(true);
+    try {
+      const prompt =
+        `Explain ${context}. Cover: (1) what the provision states, (2) essential ingredients, ` +
+        `(3) punishment/sentence, (4) key differences between the IPC and BNS versions, and ` +
+        `(5) a short practical example. Use clear headings and keep it concise.`;
+      const data = await aiConsultApi.consult(prompt, "Criminal Law");
+      setDetail(data.answer || "No additional details available.");
+    } catch {
+      setDetail("Couldn't fetch an explanation right now — the AI service may be waking up. Please try again in a moment.");
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
+
+  const askQuestion = async () => {
+    const q = question.trim();
+    if (!q || asking) return;
+    setQuestion("");
+    setAsking(true);
+    setQa((prev) => [...prev, { q, a: "" }]);
+    try {
+      const prompt = `Regarding ${context}\n\nQuestion: ${q}\n\nAnswer clearly and concisely, grounded in Indian criminal law.`;
+      const data = await aiConsultApi.consult(prompt, "Criminal Law");
+      const answer = data.answer || "No answer available.";
+      setQa((prev) => prev.map((item, i) => (i === prev.length - 1 ? { ...item, a: answer } : item)));
+    } catch {
+      setQa((prev) => prev.map((item, i) => (i === prev.length - 1 ? { ...item, a: "Couldn't answer right now. Please try again in a moment." } : item)));
+    } finally {
+      setAsking(false);
+    }
+  };
+
   return (
     <div className="vk-card p-4 space-y-2">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div className="text-center">
             <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "var(--vk-gold)" }}>IPC</p>
-            <p className="text-sm font-bold" style={{ color: "var(--vk-text)" }}>§ {entry.ipc}</p>
+            <p className="text-sm font-bold" style={{ color: "var(--vk-text)" }}>§ {entry.ipc_section}</p>
           </div>
           <ArrowLeftRight className="w-4 h-4 text-dim shrink-0" />
           <div className="text-center">
             <p className="text-[10px] font-semibold uppercase tracking-widest" style={{ color: "#4ade80" }}>BNS 2023</p>
-            <p className="text-sm font-bold" style={{ color: "#4ade80" }}>§ {entry.bns}</p>
+            <p className="text-sm font-bold" style={{ color: "#4ade80" }}>§ {entry.bns_section}</p>
           </div>
         </div>
         <span
@@ -64,7 +121,85 @@ function EntryCard({ entry }: { entry: BNSEntry }) {
       {entry.notes && (
         <p className="text-xs" style={{ color: "var(--vk-text-muted)" }}>{entry.notes}</p>
       )}
-      <p className="text-[10px] text-dim">Effective: {entry.effective_from}</p>
+      <div className="flex items-center justify-between pt-1">
+        <p className="text-[10px] text-dim">Effective: {entry.effective_from}</p>
+        <button
+          onClick={toggleDetail}
+          className="flex items-center gap-1.5 text-xs font-medium transition-colors"
+          style={{ color: "var(--vk-gold)" }}
+        >
+          <Sparkles className="w-3.5 h-3.5" />
+          {open ? "Hide details" : "More detail"}
+          <ChevronDown className={`w-3.5 h-3.5 transition-transform ${open ? "rotate-180" : ""}`} />
+        </button>
+      </div>
+      {open && (
+        <div className="mt-2 pt-3 space-y-4" style={{ borderTop: "1px solid var(--vk-border)" }}>
+          {/* Official government sources */}
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-dim">Official Sources</p>
+            <a href={IPC_OFFICIAL_PDF} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs hover:underline" style={{ color: "var(--vk-gold)" }}>
+              <ExternalLink className="w-3 h-3 shrink-0" />
+              IPC § {entry.ipc_section} — Indian Penal Code (India Code, Govt. of India · full-act PDF)
+            </a>
+            <a href={BNS_OFFICIAL_PDF} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-xs hover:underline" style={{ color: "#4ade80" }}>
+              <ExternalLink className="w-3 h-3 shrink-0" />
+              BNS § {entry.bns_section} — Bharatiya Nyaya Sanhita 2023 (MHA · official PDF)
+            </a>
+          </div>
+
+          {/* AI explanation */}
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-widest text-dim mb-1.5">
+              AI Explanation <span className="normal-case font-normal">(unofficial — verify against the official text above)</span>
+            </p>
+            {loadingDetail ? (
+              <AiThinking />
+            ) : (
+              <div className="text-sm leading-relaxed" style={{ color: "var(--vk-text-muted)" }}>
+                <Markdown>{detail}</Markdown>
+              </div>
+            )}
+          </div>
+
+          {/* Q&A on top of the section */}
+          {qa.length > 0 && (
+            <div className="space-y-3">
+              {qa.map((item, i) => (
+                <div key={i} className="space-y-1">
+                  <p className="text-xs font-semibold" style={{ color: "var(--vk-text)" }}>Q: {item.q}</p>
+                  {item.a ? (
+                    <div className="text-sm leading-relaxed" style={{ color: "var(--vk-text-muted)" }}>
+                      <Markdown>{item.a}</Markdown>
+                    </div>
+                  ) : (
+                    <AiThinking />
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Ask a question */}
+          <div className="flex gap-2">
+            <input
+              className="vk-input flex-1 text-sm"
+              placeholder="Ask a question about this section…"
+              value={question}
+              onChange={(e) => setQuestion(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") askQuestion(); }}
+              disabled={asking}
+            />
+            <button
+              onClick={askQuestion}
+              disabled={asking || !question.trim()}
+              className="btn-primary px-3 text-sm flex items-center gap-1.5"
+            >
+              <Send className="w-3.5 h-3.5" /> Ask
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -76,12 +211,13 @@ export default function IPCBNSPage() {
   const [searched, setSearched] = useState(false);
   const [totalResults, setTotalResults] = useState(0);
 
-  const handleSearch = async () => {
-    if (!query.trim()) return;
+  const handleSearch = async (term?: string) => {
+    const searchTerm = (term ?? query).trim();
+    if (!searchTerm) return;
     setLoading(true);
     setSearched(true);
     try {
-      const { data } = await backendApi.get<SearchResult>("/ipc-bns/search", { params: { q: query } });
+      const { data } = await backendApi.get<SearchResult>("/ipc-bns/search", { params: { q: searchTerm } });
       setResults(data.results);
       setTotalResults(data.total);
     } catch {
@@ -120,7 +256,7 @@ export default function IPCBNSPage() {
             />
             <button
               className="btn-primary px-5 flex items-center gap-2"
-              onClick={handleSearch}
+              onClick={() => handleSearch()}
               disabled={loading || !query.trim()}
             >
               <Search className="w-4 h-4" />
@@ -134,7 +270,7 @@ export default function IPCBNSPage() {
               <button
                 key={q}
                 className="vk-badge vk-badge-muted text-xs py-1 px-2.5 hover:opacity-80 transition-opacity cursor-pointer"
-                onClick={() => { setQuery(q); }}
+                onClick={() => { setQuery(q); handleSearch(q); }}
               >
                 {q}
               </button>
@@ -166,7 +302,7 @@ export default function IPCBNSPage() {
             <div className="space-y-3">
               <p className="text-xs text-dim">{totalResults} result{totalResults !== 1 ? "s" : ""} for &ldquo;{query}&rdquo;</p>
               {results.map((entry, i) => (
-                <EntryCard key={`${entry.ipc}-${i}`} entry={entry} />
+                <EntryCard key={`${entry.ipc_section}-${i}`} entry={entry} />
               ))}
             </div>
           ) : (

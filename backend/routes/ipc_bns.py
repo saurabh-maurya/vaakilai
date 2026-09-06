@@ -199,17 +199,22 @@ async def get_all(category: Optional[str] = None):
 
 @router.get("/search")
 async def search(q: str = Query(..., min_length=1)):
-    """Search by IPC section number, BNS section, title, or category keyword."""
-    q_lower = q.lower().strip()
+    """Search by IPC section number, BNS section, title, or category keyword.
+
+    Multi-word queries (e.g. "302 murder") match when every token appears
+    somewhere in the entry's searchable text, so section-number + keyword
+    combinations resolve correctly.
+    """
+    tokens = [t for t in q.lower().strip().split() if t]
+    if not tokens:
+        return {"query": q, "results": [], "total": 0}
     results = []
     for ipc_sec, data in IPC_TO_BNS.items():
-        if (
-            q_lower in ipc_sec
-            or q_lower in data["bns"].lower()
-            or q_lower in data["title"].lower()
-            or q_lower in data["category"].lower()
-            or q_lower in data.get("notes", "").lower()
-        ):
+        haystack = (
+            f"{ipc_sec} {data['bns']} {data['title']} "
+            f"{data['category']} {data.get('notes', '')}"
+        ).lower()
+        if all(tok in haystack for tok in tokens):
             results.append(_enrich(ipc_sec, data))
     return {"query": q, "results": results, "total": len(results)}
 

@@ -6,7 +6,7 @@ import { Markdown } from "@/components/Markdown";
 import { aiConsultApi, aiApi } from "@/lib/api";
 import {
   FileText, Upload, Search, AlertTriangle, CheckCircle,
-  Download, Eye, ChevronRight, Loader2, GitCompare, ArrowLeft,
+  Download, Eye, ChevronRight, Loader2, GitCompare, ArrowLeft, X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -253,6 +253,7 @@ export default function DocumentsPage() {
   const [riskScore, setRiskScore] = useState(0);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [generatedContent, setGeneratedContent] = useState("");
+  const [showPreview, setShowPreview] = useState(false);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
 
   // Compare state
@@ -335,6 +336,19 @@ export default function DocumentsPage() {
     }
   };
 
+  const handleDownload = () => {
+    if (!generatedContent) return;
+    const blob = new Blob([generatedContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${(selectedDoc?.name ?? "document").replace(/\s+/g, "-").toLowerCase()}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
   const SEVERITY_STYLES = {
     high: { badge: "vk-badge-red", icon: <AlertTriangle className="w-3.5 h-3.5 text-red-400" /> },
     medium: { badge: "vk-badge-gold", icon: <AlertTriangle className="w-3.5 h-3.5 text-gold" /> },
@@ -384,7 +398,7 @@ export default function DocumentsPage() {
                 {cat.docs.map((doc) => (
                   <button
                     key={doc.id}
-                    onClick={() => { setSelectedDoc(doc); setMode("generate"); setFormValues({}); setGeneratedContent(""); }}
+                    onClick={() => { setSelectedDoc(doc); setMode("generate"); setFormValues({}); setGeneratedContent(""); setShowPreview(false); }}
                     className="vk-card vk-card-hover p-4 text-left group"
                   >
                     <div className="flex items-start gap-3">
@@ -409,7 +423,7 @@ export default function DocumentsPage() {
       {(mode === "generate" || (mode === "catalog" && selectedDoc)) && selectedDoc && (
         <div className="max-w-2xl mx-auto">
           <button
-            onClick={() => { setSelectedDoc(null); setMode("catalog"); setGeneratedContent(""); setFormValues({}); }}
+            onClick={() => { setSelectedDoc(null); setMode("catalog"); setGeneratedContent(""); setFormValues({}); setShowPreview(false); }}
             className="inline-flex items-center gap-1.5 text-sm font-medium mb-5 px-3 py-1.5 rounded-lg transition-colors hover:border-gold"
             style={{ border: "1px solid var(--vk-border)", background: "var(--vk-navy-light)", color: "var(--vk-text)" }}
           >
@@ -475,12 +489,38 @@ export default function DocumentsPage() {
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold">Generated Document</h3>
                 <div className="flex gap-2">
-                  <button className="btn-secondary text-xs py-1.5"><Eye className="w-3.5 h-3.5" /> Preview</button>
-                  <button className="btn-primary text-xs py-1.5"><Download className="w-3.5 h-3.5" /> Download</button>
+                  <button onClick={() => setShowPreview(true)} className="btn-secondary text-xs py-1.5"><Eye className="w-3.5 h-3.5" /> Preview</button>
+                  <button onClick={handleDownload} className="btn-primary text-xs py-1.5"><Download className="w-3.5 h-3.5" /> Download</button>
                 </div>
               </div>
               <div className="text-sm leading-relaxed max-h-60 overflow-y-auto pr-1">
                 <Markdown>{generatedContent}</Markdown>
+              </div>
+            </div>
+          )}
+
+          {/* Preview modal */}
+          {showPreview && generatedContent && (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center p-4"
+              style={{ background: "rgba(0,0,0,0.6)" }}
+              onClick={() => setShowPreview(false)}
+            >
+              <div
+                className="vk-card w-full max-w-3xl flex flex-col"
+                style={{ maxHeight: "85vh" }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between p-4" style={{ borderBottom: "1px solid var(--vk-border)" }}>
+                  <h3 className="text-sm font-semibold">{selectedDoc?.name} — Preview</h3>
+                  <div className="flex gap-2">
+                    <button onClick={handleDownload} className="btn-primary text-xs py-1.5"><Download className="w-3.5 h-3.5" /> Download</button>
+                    <button onClick={() => setShowPreview(false)} className="btn-secondary text-xs py-1.5"><X className="w-3.5 h-3.5" /> Close</button>
+                  </div>
+                </div>
+                <div className="p-6 overflow-y-auto text-sm leading-relaxed">
+                  <Markdown>{generatedContent}</Markdown>
+                </div>
               </div>
             </div>
           )}

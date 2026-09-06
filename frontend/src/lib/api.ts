@@ -249,6 +249,15 @@ export const billingApi = {
 
 export const aiConsultApi = {
 
+  consult: async (query: string, practiceArea?: string): Promise<{ answer: string; citations?: unknown[]; confidence?: number }> => {
+    const { data } = await aiApi.post<{ answer: string; citations?: unknown[]; confidence?: number }>(
+      "/ai/consult",
+      { query, practice_area: practiceArea ?? "" },
+      { timeout: 90_000 }
+    );
+    return data;
+  },
+
   generate: async (templateId: string, fields: Record<string, string>): Promise<{ content: string; download_url?: string }> => {
     const { data } = await aiApi.post<{ content: string; download_url?: string }>(
       "/ai/documents/generate",

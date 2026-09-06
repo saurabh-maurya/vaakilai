@@ -43,6 +43,11 @@ class Settings(BaseSettings):
     whatsapp_api_token: str = ""
     whatsapp_phone_id: str = ""
 
+    # ODR provider (Presolv360 / SAMA) — optional. When unset, the ODR wizard
+    # runs in AI-preparation + manual-filing mode instead of direct submission.
+    odr_provider_api_key: str = ""
+    odr_provider_url: str = "https://api.presolv360.com/v1"
+
     # Service URLs
     ai_service_url: str = "http://localhost:8001"
 
