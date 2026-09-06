@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Markdown } from "@/components/Markdown";
 import { aiConsultApi, aiApi } from "@/lib/api";
@@ -252,6 +252,8 @@ export default function DocumentsPage() {
   const [reviewSummary, setReviewSummary] = useState("");
   const [riskScore, setRiskScore] = useState(0);
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [reviewInputMode, setReviewInputMode] = useState<"upload" | "paste">("upload");
+  const [reviewText, setReviewText] = useState("");
   const [generatedContent, setGeneratedContent] = useState("");
   const [showPreview, setShowPreview] = useState(false);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
@@ -269,6 +271,13 @@ export default function DocumentsPage() {
     risk_changes: { clause: string; change: string; severity: "high" | "medium" | "low" }[];
     key_differences: { section: string; original: string; revised: string }[];
   } | null>(null);
+
+  // Deep-link: /documents?tab=review opens the AI Review tab directly
+  // (e.g. the "Review a Document" CTA on the Consultation page).
+  useEffect(() => {
+    const tab = new URLSearchParams(window.location.search).get("tab");
+    if (tab === "review" || tab === "compare") setMode(tab as DocMode);
+  }, []);
 
   const handleCompare = async () => {
     if (!docA.trim() || !docB.trim()) return;
@@ -318,10 +327,11 @@ export default function DocumentsPage() {
   };
 
   const handleReview = async () => {
-    if (!uploadedFile) return;
+    const hasInput = reviewInputMode === "paste" ? !!reviewText.trim() : !!uploadedFile;
+    if (!hasInput) return;
     setReviewing(true);
     try {
-      const text = await uploadedFile.text();
+      const text = reviewInputMode === "paste" ? reviewText : await uploadedFile!.text();
       const result = await aiConsultApi.review(text);
       setReviewResult(result.risks);
       setReviewSummary(result.summary);
@@ -537,34 +547,68 @@ export default function DocumentsPage() {
                   <Upload className="w-6 h-6 text-gold" />
                 </div>
                 <h2 className="text-lg font-bold mb-1">AI Document Review</h2>
-                <p className="text-sm text-dim">Upload a contract or agreement. AI will flag risky clauses and suggest improvements.</p>
+                <p className="text-sm text-dim">Upload a document or paste its text. AI will flag risky clauses and suggest improvements.</p>
               </div>
-              <div
-                className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors"
-                style={{ borderColor: "var(--vk-border)" }}
-                onClick={() => document.getElementById("file-upload")?.click()}
-              >
-                <input
-                  id="file-upload"
-                  type="file"
-                  accept=".pdf,.doc,.docx,.txt"
-                  className="hidden"
-                  onChange={(e) => setUploadedFile(e.target.files?.[0] ?? null)}
+
+              {/* Input mode toggle */}
+              <div className="flex gap-1 p-1 rounded-lg mb-4 w-fit mx-auto" style={{ background: "var(--vk-navy-light)", border: "1px solid var(--vk-border)" }}>
+                {([
+                  { key: "upload", label: "Upload file" },
+                  { key: "paste", label: "Paste text" },
+                ] as const).map(({ key, label }) => (
+                  <button
+                    key={key}
+                    onClick={() => setReviewInputMode(key)}
+                    className="px-3 py-1.5 rounded-md text-xs font-medium transition-all"
+                    style={reviewInputMode === key
+                      ? { background: "linear-gradient(135deg, var(--vk-gold), var(--vk-gold-dark))", color: "var(--vk-navy)" }
+                      : { color: "var(--vk-text-muted)" }}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+
+              {reviewInputMode === "upload" ? (
+                <div
+                  className="border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-colors"
+                  style={{ borderColor: "var(--vk-border)" }}
+                  onClick={() => document.getElementById("file-upload")?.click()}
+                >
+                  <input
+                    id="file-upload"
+                    type="file"
+                    accept=".pdf,.doc,.docx,.txt"
+                    className="hidden"
+                    onChange={(e) => setUploadedFile(e.target.files?.[0] ?? null)}
+                  />
+                  {uploadedFile ? (
+                    <div className="flex items-center justify-center gap-2">
+                      <FileText className="w-5 h-5 text-gold" />
+                      <span className="text-sm font-medium">{uploadedFile.name}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <Upload className="w-8 h-8 text-dim mx-auto mb-2" />
+                      <p className="text-sm text-dim">Click to upload or drag & drop</p>
+                      <p className="text-xs text-dim mt-1">PDF, DOC, DOCX, TXT</p>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <textarea
+                  className="vk-input resize-none font-mono text-xs w-full"
+                  rows={12}
+                  placeholder="Paste the full text of your document here…"
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
                 />
-                {uploadedFile ? (
-                  <div className="flex items-center justify-center gap-2">
-                    <FileText className="w-5 h-5 text-gold" />
-                    <span className="text-sm font-medium">{uploadedFile.name}</span>
-                  </div>
-                ) : (
-                  <>
-                    <Upload className="w-8 h-8 text-dim mx-auto mb-2" />
-                    <p className="text-sm text-dim">Click to upload or drag & drop</p>
-                    <p className="text-xs text-dim mt-1">PDF, DOC, DOCX, TXT</p>
-                  </>
-                )}
-              </div>
-              <button onClick={handleReview} disabled={!uploadedFile || reviewing} className="btn-primary w-full mt-4">
+              )}
+              <button
+                onClick={handleReview}
+                disabled={reviewing || (reviewInputMode === "paste" ? !reviewText.trim() : !uploadedFile)}
+                className="btn-primary w-full mt-4"
+              >
                 {reviewing ? <><Loader2 className="w-4 h-4 animate-spin" /> Analysing…</> : "Analyse Document"}
               </button>
             </div>

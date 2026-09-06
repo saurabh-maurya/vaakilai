@@ -43,7 +43,7 @@ const CONSUMER_LEGAL: SidebarEntry[] = [
   { type: "section",      label: "Documents" },
   { href: "/documents",   label: "Documents",       icon: FileText },
   { type: "section",      label: "Legal Services" },
-  { href: "/consultation",label: "Consultation & Review", icon: PhoneCall, badge: "New" },
+  { href: "/consultation",label: "Consultation", icon: PhoneCall, badge: "New" },
   { href: "/lawyers",     label: "Find a Lawyer",   icon: Users },
   { href: "/ecourts",     label: "My Court Cases",  icon: Landmark },
   { href: "/odr",         label: "Dispute Resolution", icon: Gavel },
@@ -92,7 +92,7 @@ const PRO_LEGAL: SidebarEntry[] = [
   },
 
   { type: "section", label: "Services" },
-  { href: "/consultation", label: "Consultation & Review", icon: PhoneCall, badge: "New" },
+  { href: "/consultation", label: "Consultation", icon: PhoneCall, badge: "New" },
   { href: "/documents", label: "Documents",         icon: FileText },
   { href: "/ecourts",   label: "My Court Cases",    icon: Landmark },
   { href: "/odr",       label: "Dispute Resolution",icon: Gavel },
