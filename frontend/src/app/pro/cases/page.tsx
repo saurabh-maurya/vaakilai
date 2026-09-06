@@ -116,19 +116,25 @@ export default function CasesPage() {
     { status: "closed",  label: "Closed" },
   ];
 
+  // Load real cases on mount (silent — no toast) so saved cases show up.
+  useEffect(() => {
+    fetchCases({ silent: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Fetch cases from backend
-  async function fetchCases() {
+  async function fetchCases(opts: { silent?: boolean } = {}) {
     setLoading(true);
     try {
       const { data } = await backendApi.get("/cases", { params: { per_page: 50 } });
       const items: Case[] = data?.items ?? data ?? [];
       if (items.length > 0) setCases(items);
       else setCases(MOCK_CASES); // fallback to mock if backend empty
-      toast.success(`${items.length || MOCK_CASES.length} cases loaded`);
+      if (!opts.silent) toast.success(`${items.length || MOCK_CASES.length} cases loaded`);
     } catch {
-      // Backend not connected — stay on mock data silently
+      // Backend not connected — stay on mock data
       setCases(MOCK_CASES);
-      toast("Showing demo data — connect backend for live cases", { icon: "ℹ️" });
+      if (!opts.silent) toast("Showing demo data — connect backend for live cases", { icon: "ℹ️" });
     } finally {
       setLoading(false);
     }
@@ -201,7 +207,7 @@ export default function CasesPage() {
           {/* List / Refresh cases */}
           <button
             className="btn-secondary text-xs flex items-center gap-1.5"
-            onClick={fetchCases}
+            onClick={() => fetchCases()}
             disabled={loading}
             title="Fetch cases from server"
           >

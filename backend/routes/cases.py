@@ -18,7 +18,19 @@ def _oid(value: str) -> ObjectId:
 
 
 def doc_out(doc: dict) -> dict:
-    doc["id"] = str(doc.pop("_id"))
+    """Serialize a stored case, exposing the field names the UI expects.
+
+    Storage uses ``case_type`` / ``filed_date`` / ``next_hearing_date``; the
+    frontend ``Case`` type uses ``practice_area`` / ``filing_date`` /
+    ``next_hearing``. We add the UI aliases (keeping the originals is harmless).
+    """
+    if "_id" in doc:
+        doc["id"] = str(doc.pop("_id"))
+    doc["practice_area"] = doc.get("case_type", "")
+    doc["filing_date"] = doc.get("filed_date")
+    doc["next_hearing"] = doc.get("next_hearing_date")
+    doc.setdefault("documents_count", 0)
+    doc.setdefault("tasks_pending", 0)
     return doc
 
 
@@ -36,10 +48,29 @@ async def _get_case_owned(db, case_id: str, user_id: str, role: str) -> dict:
 @router.post("/", status_code=201)
 async def create_case(payload: CaseCreate, current_user: dict = Depends(require_lawyer)):
     db = get_db()
-    case = CaseDB(lawyer_id=current_user["user_id"], **payload.model_dump()).model_dump()
+    # Accept both the UI field names and the legacy aliases.
+    case = CaseDB(
+        lawyer_id=current_user["user_id"],
+        title=payload.title,
+        client_name=payload.client_name or "",
+        client_id=payload.client_id or "",
+        case_type=payload.practice_area or payload.case_type or "",
+        court=payload.court,
+        judge=payload.judge,
+        case_number=payload.case_number,
+        ecourts_case_id=payload.ecourts_case_id,
+        description=payload.description,
+        status=payload.status,
+        filed_date=payload.filing_date or payload.filed_date,
+        next_hearing_date=payload.next_hearing or payload.next_hearing_date,
+    ).model_dump()
     case["timeline"].append({"event": "Case created", "timestamp": datetime.utcnow().isoformat()})
     result = await db.cases.insert_one(case)
-    return {"id": str(result.inserted_id)}
+    # Return the full stored case (with id, mapped to UI names) so the client
+    # can render it immediately.
+    case["id"] = str(result.inserted_id)
+    case.pop("_id", None)
+    return doc_out(case)
 
 
 @router.get("/")
@@ -69,6 +100,13 @@ async def update_case(case_id: str, payload: CaseUpdate, current_user: dict = De
     if not existing:
         raise HTTPException(status_code=404, detail="Case not found")
     update = {k: v for k, v in payload.model_dump().items() if v is not None}
+    # Map UI field names to the stored schema names.
+    if "practice_area" in update:
+        update["case_type"] = update.pop("practice_area")
+    if "filing_date" in update:
+        update["filed_date"] = update.pop("filing_date")
+    if "next_hearing" in update:
+        update["next_hearing_date"] = update.pop("next_hearing")
     update["updated_at"] = datetime.utcnow()
     await db.cases.update_one({"_id": _oid(case_id)}, {"$set": update})
     return {"message": "Case updated"}
