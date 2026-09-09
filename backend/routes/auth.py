@@ -158,12 +158,16 @@ async def register(request: Request, response: Response, payload: UserCreate):
     if phone and await _phone_taken(db, phone):
         raise HTTPException(status_code=400, detail="Phone number already registered")
 
+    # Self-declared at signup — only consumer/lawyer are allowed here (validated on
+    # UserCreate.role); firm_admin/client_portal/admin remain an admin-only escalation.
+    role = UserRole.lawyer if payload.role == "lawyer" else UserRole.consumer
+
     user_doc = UserDB(
         name=payload.name,
         email=payload.email,
         phone=phone,
         hashed_password=hash_password(payload.password),
-        role=UserRole.consumer,  # always force consumer — role escalation via admin workflow only
+        role=role,
     ).model_dump(exclude_none=True)
 
     try:
@@ -176,7 +180,7 @@ async def register(request: Request, response: Response, payload: UserCreate):
     token = create_access_token({
         "sub": str(result.inserted_id),
         "email": payload.email,
-        "role": UserRole.consumer,
+        "role": role,
     })
     _set_auth_cookie(response, token)
     # Token is in the httpOnly cookie — not returned in the body

@@ -32,6 +32,16 @@ class UserCreate(BaseModel):
     email: EmailStr
     phone: Optional[str] = Field(None, max_length=20)
     password: str = Field(..., min_length=8, max_length=128)
+    # Self-declared account type at signup. Anything beyond consumer/lawyer
+    # (firm_admin, client_portal, admin) stays an admin-only escalation.
+    role: Optional[str] = None
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None and v not in ("consumer", "lawyer"):
+            raise ValueError("role must be 'consumer' or 'lawyer'")
+        return v
 
     @field_validator("password")
     @classmethod
