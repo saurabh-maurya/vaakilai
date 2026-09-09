@@ -10,7 +10,7 @@ import {
   ChevronDown, ChevronRight, Sparkles, Landmark, Search, CheckSquare,
   Gavel, ArrowLeftRight, Newspaper, BarChart2, FileSignature, Lightbulb,
   UserCheck, Swords, ListChecks, Clock, Library, Brain, Home, ScrollText,
-  ClipboardList, Building2, PhoneCall, ShieldAlert, Activity,
+  ClipboardList, Building2, ShieldAlert, Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useState, useEffect } from "react";
@@ -32,19 +32,21 @@ function isGroup(e: SidebarEntry): e is NavGroup { return (e as NavGroup).type =
 // ── Paths that belong to Compliance mode ─────────────────────────────────────
 const COMPLIANCE_PATHS = ["/compliance-filings", "/company-compliance"];
 
+// ── Neutral paths — shared across both modes; never force a toggle switch ─────
+// Dashboard & Settings belong to neither Legal nor Compliance, so landing on
+// them should preserve whatever mode the user was already in.
+const NEUTRAL_PATHS = ["/dashboard", "/pro/dashboard", "/settings", "/client"];
+
 // ── NAV DEFINITIONS ───────────────────────────────────────────────────────────
 
 // Consumer — Legal
 const CONSUMER_LEGAL: SidebarEntry[] = [
   { href: "/dashboard",   label: "Dashboard",       icon: LayoutDashboard },
   { type: "section",      label: "AI & Guidance" },
-  { href: "/chat",        label: "AI Legal Chat",   icon: MessageSquare },
-  { href: "/rights",      label: "Know Your Rights",icon: ShieldCheck },
+  { href: "/chat",        label: "AI Legal Help",   icon: MessageSquare },
   { type: "section",      label: "Documents" },
   { href: "/documents",   label: "Documents",       icon: FileText },
   { type: "section",      label: "Legal Services" },
-  { href: "/consultation",label: "Consultation", icon: PhoneCall, badge: "New" },
-  { href: "/lawyers",     label: "Find a Lawyer",   icon: Users },
   { href: "/ecourts",     label: "My Court Cases",  icon: Landmark },
   { href: "/odr",         label: "Dispute Resolution", icon: Gavel },
   { type: "section",      label: "Reference" },
@@ -92,7 +94,6 @@ const PRO_LEGAL: SidebarEntry[] = [
   },
 
   { type: "section", label: "Services" },
-  { href: "/consultation", label: "Consultation", icon: PhoneCall, badge: "New" },
   { href: "/documents", label: "Documents",         icon: FileText },
   { href: "/ecourts",   label: "My Court Cases",    icon: Landmark },
   { href: "/odr",       label: "Dispute Resolution",icon: Gavel },
@@ -241,11 +242,14 @@ export function Sidebar() {
     : "legal";
   const [mode, setMode] = useState<SidebarMode>(defaultMode);
 
-  // Keep mode in sync when user navigates directly via URL
+  // Keep mode in sync when user navigates directly via URL.
+  // Neutral pages (Dashboard, Settings, Client) are independent of the toggle —
+  // they preserve whatever mode the user was already in.
   useEffect(() => {
+    if (NEUTRAL_PATHS.some((p) => pathname.startsWith(p))) return;
     if (COMPLIANCE_PATHS.some((p) => pathname.startsWith(p))) {
       setMode("compliance");
-    } else if (!pathname.startsWith("/settings") && !pathname.startsWith("/client")) {
+    } else {
       setMode("legal");
     }
   }, [pathname]);

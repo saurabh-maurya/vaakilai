@@ -119,7 +119,7 @@ export default function DashboardPage() {
           </h2>
           <div className="space-y-3">
             {[
-              { href: "/rights", icon: Shield, label: "Know Your Rights", desc: "Tenant, Employee, Consumer rights explained", color: "#a78bfa" },
+              { href: "/chat", icon: Shield, label: "Know Your Rights", desc: "Tenant, Employee, Consumer rights explained", color: "#a78bfa" },
               { href: "/lawyers", icon: Users, label: "Lawyer Marketplace", desc: "500+ verified advocates across India", color: "#4ade80" },
               { href: "/documents", icon: FileText, label: "Document Templates", desc: "150+ ready-to-use legal templates", color: "#60a5fa" },
             ].map(({ href, icon: Icon, label, desc, color }) => (

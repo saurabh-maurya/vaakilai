@@ -5,6 +5,7 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { MessageBubble } from "@/components/chat/MessageBubble";
 import { TypingIndicator } from "@/components/chat/TypingIndicator";
+import { KnowYourRights } from "@/components/chat/KnowYourRights";
 import { useChat } from "@/hooks/useChat";
 import { PRACTICE_AREAS, INDIAN_STATES } from "@/lib/utils";
 import {
@@ -33,6 +34,7 @@ function ChatPageContent() {
 
   const [input, setInput] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [emptyTab, setEmptyTab] = useState<"ask" | "rights">("ask");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -84,8 +86,8 @@ function ChatPageContent() {
 
   return (
     <AppLayout
-      title="AI Legal Assistant"
-      subtitle="Ask any legal question — jurisdiction-aware, multi-language, cited answers"
+      title="AI Legal Help"
+      subtitle="Ask any legal question or browse your rights — jurisdiction-aware, cited answers"
       actions={
         <div className="flex items-center gap-2">
           <button
@@ -194,22 +196,53 @@ function ChatPageContent() {
                 <Scale className="w-7 h-7 text-gold" />
               </div>
               <h2 className="text-xl font-bold mb-2">How can I help you today?</h2>
-              <p className="text-sm text-dim mb-8 text-center max-w-md">
-                Ask me anything about Indian law — tenant rights, employment, criminal procedure,
-                property, consumer protection, and more.
+              <p className="text-sm text-dim mb-6 text-center max-w-md">
+                Ask me anything about Indian law, or browse the plain-language guides to
+                your rights — tenant, employment, consumer, criminal, and more.
               </p>
-              <div className="grid grid-cols-2 gap-2 w-full max-w-lg">
-                {STARTER_PROMPTS.map(({ label, prompt }) => (
+
+              {/* Ask AI ⇄ Know Your Rights toggle */}
+              <div
+                className="flex rounded-lg p-0.5 mb-8"
+                style={{ background: "var(--vk-navy-light)", border: "1px solid var(--vk-border)" }}
+              >
+                {([
+                  { id: "ask", label: "Ask AI" },
+                  { id: "rights", label: "Know Your Rights" },
+                ] as const).map(({ id, label }) => (
                   <button
-                    key={label}
-                    onClick={() => handleStarter(prompt)}
-                    className="prompt-card text-xs text-left"
+                    key={id}
+                    onClick={() => setEmptyTab(id)}
+                    className="px-4 py-1.5 rounded-md text-xs font-semibold transition-colors"
+                    style={
+                      emptyTab === id
+                        ? { background: "linear-gradient(135deg, var(--vk-gold), var(--vk-gold-dark))", color: "var(--vk-navy)" }
+                        : { color: "var(--vk-text-muted)" }
+                    }
                   >
-                    <p className="font-semibold text-gold-light mb-0.5">{label}</p>
-                    <p className="text-dim leading-snug line-clamp-2">{prompt}</p>
+                    {label}
                   </button>
                 ))}
               </div>
+
+              {emptyTab === "ask" ? (
+                <div className="grid grid-cols-2 gap-2 w-full max-w-lg">
+                  {STARTER_PROMPTS.map(({ label, prompt }) => (
+                    <button
+                      key={label}
+                      onClick={() => handleStarter(prompt)}
+                      className="prompt-card text-xs text-left"
+                    >
+                      <p className="font-semibold text-gold-light mb-0.5">{label}</p>
+                      <p className="text-dim leading-snug line-clamp-2">{prompt}</p>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="w-full animate-fade-in">
+                  <KnowYourRights onAsk={(prompt) => void sendMessage(prompt)} />
+                </div>
+              )}
             </div>
           ) : (
             <>

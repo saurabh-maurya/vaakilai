@@ -34,6 +34,8 @@ class CaseTrackRequest(BaseModel):
     case_title: Optional[str] = None
     next_hearing_date: Optional[str] = None
     court_name: Optional[str] = None
+    # For advocates: which client this matter belongs to (ignored for individuals).
+    client_name: Optional[str] = None
 
 
 class ManualHearingUpdate(BaseModel):
@@ -94,6 +96,7 @@ async def track_case(
             "respondent": api_data.get("respondent", ""),
             "next_hearing_date": api_data.get("next_hearing_date") or api_data.get("hearing_date", ""),
             "court_name": api_data.get("court_name", ""),
+            "client_name": body.client_name or "",
             "case_status": api_data.get("status", "Pending"),
             "last_orders": api_data.get("orders", []),
             "source": "api",
@@ -114,6 +117,7 @@ async def track_case(
             "case_title": body.case_title or "",
             "next_hearing_date": body.next_hearing_date or "",
             "court_name": body.court_name or "",
+            "client_name": body.client_name or "",
             "case_status": "Pending",
             "last_orders": [],
             "source": "manual",

@@ -2,9 +2,14 @@
 
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Landmark, Plus, RefreshCw, Calendar, ShieldCheck, ShieldAlert, Trash2, Edit2 } from "lucide-react";
+import {
+  Landmark, Plus, RefreshCw, Calendar, ShieldCheck, ShieldAlert, Trash2, Edit2,
+  Briefcase, CalendarClock, AlertTriangle, User,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import { backendApi } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { isProRole } from "@/lib/utils";
 import {
   INDIAN_STATES_UT, districtsOf, citiesOf, OTHER_OPTION,
 } from "@/lib/indiaLocations";
@@ -18,6 +23,7 @@ interface TrackedCase {
   state: string;
   district?: string;
   city?: string;
+  client_name?: string;
   case_status: string;
   next_hearing_date: string;
   source: string;
@@ -30,13 +36,18 @@ interface TrackedCase {
 const COURT_TYPES = ["district", "high_court", "supreme_court", "tribunal", "consumer_forum"];
 
 export default function ECourtsPage() {
+  const { user } = useAuth();
+  // Advocates manage a caseload by client; individuals track their own matters.
+  const isLawyer = user ? isProRole(user.role) : false;
+
   const [cases, setCases] = useState<TrackedCase[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [clientFilter, setClientFilter] = useState<string>("");
   const [form, setForm] = useState({
     case_number: "", court_type: "district", state: "", district: "", city: "",
-    case_title: "", next_hearing_date: "", court_name: "", validate_on_ecourt: false,
+    case_title: "", next_hearing_date: "", court_name: "", client_name: "", validate_on_ecourt: false,
   });
   // "Other…" free-text mode for district / city when not in the list.
   const [districtOther, setDistrictOther] = useState(false);
@@ -50,7 +61,7 @@ export default function ECourtsPage() {
   const resetForm = () => {
     setForm({
       case_number: "", court_type: "district", state: "", district: "", city: "",
-      case_title: "", next_hearing_date: "", court_name: "", validate_on_ecourt: false,
+      case_title: "", next_hearing_date: "", court_name: "", client_name: "", validate_on_ecourt: false,
     });
     setDistrictOther(false);
     setCityOther(false);
@@ -135,19 +146,79 @@ export default function ECourtsPage() {
     return "text-green-400";
   };
 
+  // Distinct clients across the caseload (advocate view).
+  const clients = Array.from(
+    new Set(cases.map((c) => c.client_name).filter((n): n is string => !!n))
+  ).sort();
+
+  const visibleCases = clientFilter
+    ? cases.filter((c) => (c.client_name || "") === clientFilter)
+    : cases;
+
+  // Caseload summary for advocates.
+  const stats = {
+    total: cases.length,
+    thisWeek: cases.filter((c) => c.days_remaining != null && c.days_remaining >= 0 && c.days_remaining <= 7).length,
+    overdue: cases.filter((c) => c.days_remaining != null && c.days_remaining < 0).length,
+    validated: cases.filter((c) => c.validated).length,
+  };
+
   return (
-    <AppLayout title="eCourts Tracker" subtitle="Track hearing dates and case status across Indian courts">
+    <AppLayout
+      title={isLawyer ? "Case Management" : "eCourts Tracker"}
+      subtitle={isLawyer
+        ? "Manage your court cases and hearings by client"
+        : "Track hearing dates and case status across Indian courts"}
+    >
       <div className="max-w-4xl mx-auto space-y-5">
 
+        {/* Caseload summary — advocate view only */}
+        {isLawyer && (
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {[
+              { label: "Total Cases",    value: stats.total,     icon: Briefcase,     color: "#60a5fa" },
+              { label: "Hearings ≤ 7d",  value: stats.thisWeek,  icon: CalendarClock, color: "#f59e0b" },
+              { label: "Overdue",        value: stats.overdue,   icon: AlertTriangle, color: "#f87171" },
+              { label: "eCourts Valid.", value: stats.validated, icon: ShieldCheck,   color: "#4ade80" },
+            ].map(({ label, value, icon: Icon, color }) => (
+              <div key={label} className="vk-card p-4 flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: `${color}18`, color }}>
+                  <Icon className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-lg font-bold leading-none" style={{ color: "var(--vk-text)" }}>{value}</p>
+                  <p className="text-[11px] text-dim mt-1">{label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* Header actions */}
-        <div className="flex justify-between items-center">
-          <p className="text-sm text-dim">{cases.length} cases tracked</p>
+        <div className="flex justify-between items-center gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <p className="text-sm text-dim">
+              {isLawyer ? `${visibleCases.length} of ${cases.length} cases` : `${cases.length} cases tracked`}
+            </p>
+            {/* Client filter — advocate view only */}
+            {isLawyer && clients.length > 0 && (
+              <select
+                className="vk-input text-xs py-1.5"
+                value={clientFilter}
+                onChange={(e) => setClientFilter(e.target.value)}
+              >
+                <option value="">All clients</option>
+                {clients.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            )}
+          </div>
           <div className="flex gap-2">
             <button className="btn-secondary text-xs py-2 px-3 flex items-center gap-1.5" onClick={load}>
               <RefreshCw className="w-3.5 h-3.5" /> Refresh
             </button>
             <button className="btn-primary text-xs py-2 px-3 flex items-center gap-1.5" onClick={() => setShowAdd(true)}>
-              <Plus className="w-3.5 h-3.5" /> Track Case
+              <Plus className="w-3.5 h-3.5" /> {isLawyer ? "Add Case" : "Track Case"}
             </button>
           </div>
         </div>
@@ -155,7 +226,18 @@ export default function ECourtsPage() {
         {/* Add form */}
         {showAdd && (
           <div className="vk-card p-5 space-y-4">
-            <h3 className="font-semibold text-sm">Track New Case</h3>
+            <h3 className="font-semibold text-sm">{isLawyer ? "Add New Case" : "Track New Case"}</h3>
+            {isLawyer && (
+              <div>
+                <label className="vk-label">Client</label>
+                <input
+                  className="vk-input w-full"
+                  placeholder="e.g. Ranjeet Sharma"
+                  value={form.client_name}
+                  onChange={e => setForm(f => ({ ...f, client_name: e.target.value }))}
+                />
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="vk-label">Case Number *</label>
@@ -260,15 +342,23 @@ export default function ECourtsPage() {
         {/* Cases list */}
         {loading ? (
           <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="vk-skeleton h-24 rounded-xl" />)}</div>
-        ) : cases.length === 0 ? (
+        ) : visibleCases.length === 0 ? (
           <div className="vk-card p-12 text-center text-dim">
             <Landmark className="w-10 h-10 mx-auto mb-3 opacity-30" />
-            <p className="font-semibold">No cases tracked yet</p>
-            <p className="text-sm mt-1">Click &ldquo;Track Case&rdquo; to add your first case.</p>
+            <p className="font-semibold">
+              {cases.length === 0
+                ? (isLawyer ? "No cases yet" : "No cases tracked yet")
+                : "No cases for this client"}
+            </p>
+            <p className="text-sm mt-1">
+              {cases.length === 0
+                ? `Click “${isLawyer ? "Add" : "Track"} Case” to add your first case.`
+                : "Try a different client filter."}
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
-            {cases.map(c => (
+            {visibleCases.map(c => (
               <div key={c.id} className="vk-card p-4 space-y-3">
                 <div className="flex items-start justify-between">
                   <div>
@@ -286,6 +376,11 @@ export default function ECourtsPage() {
                         </span>
                       )}
                     </div>
+                    {isLawyer && c.client_name && (
+                      <p className="flex items-center gap-1 text-xs mt-1.5" style={{ color: "var(--vk-gold-light)" }}>
+                        <User className="w-3 h-3" /> {c.client_name}
+                      </p>
+                    )}
                     {c.case_title && <p className="text-xs text-dim mt-1">{c.case_title}</p>}
                     {(c.court_name || c.city || c.district || c.state) && (
                       <p className="text-[11px] text-dim">
