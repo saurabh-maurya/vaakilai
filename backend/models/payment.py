@@ -1,5 +1,5 @@
-from pydantic import BaseModel, Field
-from typing import Optional
+from pydantic import BaseModel, EmailStr, Field
+from typing import List, Optional
 from datetime import datetime
 from enum import Enum
 
@@ -41,11 +41,27 @@ class PaymentDB(BaseModel):
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
 
+class InvoiceLineItem(BaseModel):
+    description: str
+    hours: Optional[float] = None
+    rate: Optional[float] = None
+    amount: float = 0.0
+
+
 class InvoiceCreate(BaseModel):
-    client_id: str
+    client_name: str
+    client_email: Optional[EmailStr] = None
+    client_id: Optional[str] = None
     case_id: Optional[str] = None
-    line_items: list
+    items: List[InvoiceLineItem]
+    gst_rate: float = 0.18
+    due_date: Optional[str] = None
     notes: Optional[str] = None
+    status: str = "draft"  # "draft" or "sent"
+
+
+class InvoiceSendRequest(BaseModel):
+    to_email: EmailStr
 
 
 class TimeEntryCreate(BaseModel):

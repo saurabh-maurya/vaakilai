@@ -7,10 +7,14 @@ from datetime import datetime
 from pydantic import BaseModel as _PydanticBase
 
 from database import get_db
-from models.payment import PaymentCreate, EscrowRelease, InvoiceCreate, TimeEntryCreate, ExpenseCreate, PaymentDB
+from models.payment import (
+    PaymentCreate, EscrowRelease, InvoiceCreate, InvoiceSendRequest,
+    TimeEntryCreate, ExpenseCreate, PaymentDB,
+)
 from middleware.auth_middleware import get_current_user, require_lawyer
 from config import settings
 from services.payment_service import create_razorpay_order, generate_invoice_pdf
+from services.notification_service import send_email
 
 router = APIRouter()
 
@@ -177,22 +181,45 @@ async def get_time_entries(case_id: str = None, current_user: dict = Depends(req
 
 
 # --- Invoices ---
+async def _next_invoice_number(db, lawyer_id: str) -> str:
+    year = datetime.utcnow().year
+    count = await db.invoices.count_documents({
+        "lawyer_id": lawyer_id,
+        "invoice_number": {"$regex": f"^INV-{year}-"},
+    })
+    return f"INV-{year}-{count + 1:03d}"
+
+
 @router.post("/invoices", status_code=201)
 async def create_invoice(payload: InvoiceCreate, current_user: dict = Depends(require_lawyer)):
     db = get_db()
-    subtotal = sum(item.get("amount", 0) for item in payload.line_items)
-    gst = round(subtotal * GST_RATE, 2)
+    items = [item.model_dump() for item in payload.items]
+    subtotal = round(sum(item["amount"] for item in items), 2)
+    gst = round(subtotal * payload.gst_rate, 2)
+    now = datetime.utcnow()
+    status = "sent" if payload.status == "sent" else "draft"
+
     invoice = {
-        **payload.model_dump(),
+        "invoice_number": await _next_invoice_number(db, current_user["user_id"]),
         "lawyer_id": current_user["user_id"],
-        "subtotal": subtotal,
-        "gst_amount": gst,
-        "total": subtotal + gst,
-        "status": "draft",
-        "created_at": datetime.utcnow(),
+        "client_name": payload.client_name,
+        "client_email": payload.client_email,
+        "client_id": payload.client_id,
+        "case_id": payload.case_id,
+        "items": items,
+        "amount": subtotal,
+        "tax": gst,
+        "total": round(subtotal + gst, 2),
+        "status": status,
+        "due_date": payload.due_date,
+        "issued_date": now.strftime("%Y-%m-%d"),
+        "notes": payload.notes,
+        "created_at": now,
     }
     result = await db.invoices.insert_one(invoice)
-    return {"id": str(result.inserted_id)}
+    invoice["id"] = str(result.inserted_id)
+    invoice.pop("_id", None)
+    return invoice
 
 
 @router.get("/invoices")
@@ -207,6 +234,38 @@ async def list_invoices(status: str = None, current_user: dict = Depends(require
         doc["id"] = str(doc.pop("_id"))
         results.append(doc)
     return results
+
+
+@router.post("/invoices/{invoice_id}/send")
+async def send_invoice(invoice_id: str, payload: InvoiceSendRequest, current_user: dict = Depends(require_lawyer)):
+    db = get_db()
+    invoice = await db.invoices.find_one({"_id": _oid(invoice_id), "lawyer_id": current_user["user_id"]})
+    if not invoice:
+        raise HTTPException(status_code=404, detail="Invoice not found")
+
+    lines = "\n".join(f"- {item['description']}: Rs. {item['amount']:,.2f}" for item in invoice.get("items", []))
+    subject = f"Invoice {invoice['invoice_number']} from {current_user.get('name') or 'VakilAI'}"
+    body = (
+        f"Dear {invoice.get('client_name') or 'Client'},\n\n"
+        f"Please find your invoice {invoice['invoice_number']} below.\n\n"
+        f"{lines}\n\n"
+        f"Subtotal: Rs. {invoice['amount']:,.2f}\n"
+        f"GST: Rs. {invoice['tax']:,.2f}\n"
+        f"Total Due: Rs. {invoice['total']:,.2f}\n"
+        f"Due Date: {invoice.get('due_date') or 'On receipt'}\n\n"
+        + (f"Notes: {invoice['notes']}\n\n" if invoice.get("notes") else "")
+        + "Thank you.\n"
+    )
+
+    result = await send_email(payload.to_email, subject, body)
+    if result.get("status") != "sent":
+        raise HTTPException(status_code=502, detail=f"Failed to send invoice email: {result.get('error', 'unknown error')}")
+
+    await db.invoices.update_one(
+        {"_id": invoice["_id"]},
+        {"$set": {"status": "sent", "sent_to": payload.to_email, "sent_at": datetime.utcnow()}},
+    )
+    return {"status": "sent", "message_id": result.get("message_id")}
 
 
 # --- Expenses ---

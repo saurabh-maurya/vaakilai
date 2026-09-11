@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { StatCard } from "@/components/ui/StatCard";
 import { useAuth } from "@/contexts/AuthContext";
 import type { Invoice, InvoiceStatus } from "@/types";
 import { formatCurrency, formatDate } from "@/lib/utils";
+import { backendApi, getApiErrorMessage } from "@/lib/api";
 import {
   Receipt, TrendingUp, Clock, AlertCircle, Plus, Download, Eye,
   X, Trash2, Mail, CheckCircle,
@@ -20,33 +21,6 @@ const STATUS_STYLES: Record<InvoiceStatus, string> = {
   cancelled: "vk-badge-muted",
 };
 
-const MOCK_INVOICES: Invoice[] = [
-  {
-    id: "1", invoice_number: "INV-2026-042", client_name: "Nexus Ventures Ltd.", client_id: "c2",
-    case_id: "2", amount: 21186, tax: 3814, total: 25000, status: "sent",
-    due_date: "2026-07-01", issued_date: "2026-06-10",
-    items: [{ description: "Legal consultation — June 2026", hours: 4, rate: 5000, amount: 20000 }, { description: "Document review", amount: 1186 }],
-  },
-  {
-    id: "2", invoice_number: "INV-2026-041", client_name: "Ranjeet Sharma", client_id: "c1",
-    case_id: "1", amount: 8474, tax: 1526, total: 10000, status: "paid",
-    due_date: "2026-06-01", issued_date: "2026-05-15", paid_date: "2026-05-28",
-    items: [{ description: "Court appearance — Allahabad HC", hours: 2, rate: 4237, amount: 8474 }],
-  },
-  {
-    id: "3", invoice_number: "INV-2026-040", client_name: "Arvind Mehta", client_id: "c3",
-    amount: 12712, tax: 2288, total: 15000, status: "overdue",
-    due_date: "2026-05-20", issued_date: "2026-05-01",
-    items: [{ description: "Property dispute consultation", hours: 3, rate: 4237, amount: 12712 }],
-  },
-  {
-    id: "4", invoice_number: "INV-2026-039", client_name: "Sunita Gupta", client_id: "c4",
-    amount: 42373, tax: 7627, total: 50000, status: "draft",
-    due_date: "2026-07-15", issued_date: "2026-06-17",
-    items: [{ description: "Divorce proceedings — full representation", amount: 42373 }],
-  },
-];
-
 interface LineItem {
   description: string;
   hours: string;
@@ -56,23 +30,17 @@ interface LineItem {
 
 const EMPTY_ITEM: LineItem = { description: "", hours: "", rate: "", amount: "" };
 
-function nextInvoiceNumber(invoices: Invoice[]): string {
-  const year = new Date().getFullYear();
-  const nums = invoices
-    .map((i) => parseInt(i.invoice_number.split("-")[2] ?? "0", 10))
-    .filter((n) => !isNaN(n));
-  const next = nums.length ? Math.max(...nums) + 1 : 1;
-  return `INV-${year}-${String(next).padStart(3, "0")}`;
-}
-
 export default function BillingPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"invoices" | "time" | "annual-filing">("invoices");
 
   const [statusFilter, setStatusFilter] = useState<string>("");
-  const [invoices, setInvoices] = useState<Invoice[]>(MOCK_INVOICES);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [createdInvoice, setCreatedInvoice] = useState<Invoice | null>(null);
+  const [emailWarning, setEmailWarning] = useState("");
 
   // Form state
   const [clientName, setClientName] = useState("");
@@ -83,6 +51,22 @@ export default function BillingPage() {
   const [sendEmail, setSendEmail] = useState(false);
   const [emailTo, setEmailTo] = useState("");
   const [items, setItems] = useState<LineItem[]>([{ ...EMPTY_ITEM }]);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+
+  const loadInvoices = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await backendApi.get<Invoice[]>("/payments/invoices");
+      setInvoices(data || []);
+    } catch {
+      setInvoices([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { loadInvoices(); }, [loadInvoices]);
 
   const filtered = invoices.filter((inv) => !statusFilter || inv.status === statusFilter);
   const totalBilled = invoices.filter((i) => i.status !== "draft").reduce((s, i) => s + i.total, 0);
@@ -128,40 +112,58 @@ export default function BillingPage() {
     setEmailTo(user?.email ?? "");
     setItems([{ ...EMPTY_ITEM }]);
     setSubmitted(false);
+    setCreatedInvoice(null);
+    setEmailWarning("");
+    setFormError("");
     setShowModal(true);
   }
 
   function closeModal() {
     setShowModal(false);
     setSubmitted(false);
+    loadInvoices();
   }
 
-  function handleCreate(asDraft: boolean) {
+  async function handleCreate(asDraft: boolean) {
     if (!clientName.trim() || items.every((it) => !it.description.trim())) return;
 
-    const newInv: Invoice = {
-      id: String(Date.now()),
-      invoice_number: nextInvoiceNumber(invoices),
-      client_name: clientName.trim(),
-      client_id: "",
-      amount: subtotal,
-      tax: Math.round(gst),
-      total: Math.round(grandTotal),
-      status: asDraft ? "draft" : "sent",
-      due_date: dueDate || new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
-      issued_date: new Date().toISOString().slice(0, 10),
-      items: items
-        .filter((it) => it.description.trim())
-        .map((it) => ({
-          description: it.description,
-          ...(it.hours ? { hours: parseFloat(it.hours) } : {}),
-          ...(it.rate ? { rate: parseFloat(it.rate) } : {}),
-          amount: parseFloat(it.amount) || 0,
-        })),
-    };
+    setSaving(true);
+    setFormError("");
+    try {
+      const { data: invoice } = await backendApi.post<Invoice>("/payments/invoices", {
+        client_name: clientName.trim(),
+        client_email: clientEmail.trim() || undefined,
+        due_date: dueDate || new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10),
+        gst_rate: parseFloat(gstRate || "0") / 100,
+        notes: notes.trim() || undefined,
+        status: asDraft ? "draft" : "sent",
+        items: items
+          .filter((it) => it.description.trim())
+          .map((it) => ({
+            description: it.description,
+            hours: it.hours ? parseFloat(it.hours) : undefined,
+            rate: it.rate ? parseFloat(it.rate) : undefined,
+            amount: parseFloat(it.amount) || 0,
+          })),
+      });
 
-    setInvoices((prev) => [newInv, ...prev]);
-    setSubmitted(true);
+      setCreatedInvoice(invoice);
+
+      if (sendEmail && emailTo.trim()) {
+        try {
+          await backendApi.post(`/payments/invoices/${invoice.id}/send`, { to_email: emailTo.trim() });
+        } catch (err) {
+          setEmailWarning(getApiErrorMessage(err, "The invoice was created, but the email failed to send."));
+        }
+      }
+
+      setInvoices((prev) => [invoice, ...prev]);
+      setSubmitted(true);
+    } catch (err) {
+      setFormError(getApiErrorMessage(err, "Failed to create invoice."));
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -237,7 +239,11 @@ export default function BillingPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((inv) => (
+                {loading ? (
+                  <tr><td colSpan={7} className="text-center text-dim text-xs py-8">Loading invoices…</td></tr>
+                ) : filtered.length === 0 ? (
+                  <tr><td colSpan={7} className="text-center text-dim text-xs py-8">No invoices yet. Create your first one.</td></tr>
+                ) : filtered.map((inv) => (
                   <tr key={inv.id}>
                     <td>
                       <p className="text-sm font-mono font-medium" style={{ color: "var(--vk-text)" }}>{inv.invoice_number}</p>
@@ -329,7 +335,7 @@ export default function BillingPage() {
             <div className="flex items-center justify-between px-6 py-4" style={{ borderBottom: "1px solid var(--vk-border)" }}>
               <div>
                 <h2 className="text-base font-bold" style={{ color: "var(--vk-text)" }}>New Invoice</h2>
-                <p className="text-xs text-dim mt-0.5">{nextInvoiceNumber(invoices)}</p>
+                <p className="text-xs text-dim mt-0.5">Invoice number is assigned on save</p>
               </div>
               <button onClick={closeModal} className="btn-ghost p-1.5 rounded-lg">
                 <X className="w-4 h-4" />
@@ -343,11 +349,17 @@ export default function BillingPage() {
                   <CheckCircle className="w-8 h-8 text-green-400" />
                 </div>
                 <h3 className="text-lg font-bold mb-1">Invoice Created</h3>
-                <p className="text-sm text-dim mb-2">{nextInvoiceNumber(invoices)} has been added to your invoices.</p>
-                {sendEmail && (
+                <p className="text-sm text-dim mb-2">{createdInvoice?.invoice_number} has been added to your invoices.</p>
+                {sendEmail && !emailWarning && (
                   <p className="text-xs text-dim flex items-center justify-center gap-1.5">
                     <Mail className="w-3.5 h-3.5 text-gold" />
-                    A copy will be sent to <span className="text-gold ml-1">{emailTo}</span>
+                    Sent to <span className="text-gold ml-1">{emailTo}</span>
+                  </p>
+                )}
+                {emailWarning && (
+                  <p className="text-xs text-red-400 flex items-center justify-center gap-1.5 max-w-sm mx-auto">
+                    <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+                    {emailWarning}
                   </p>
                 )}
                 <button className="btn-primary mt-6 text-sm" onClick={closeModal}>Done</button>
@@ -515,7 +527,7 @@ export default function BillingPage() {
                         <Mail className="inline w-3.5 h-3.5 mr-1.5 text-gold" />
                         Send invoice by email
                       </p>
-                      <p className="text-[11px] text-dim">Deliver a PDF copy to the recipient after creation</p>
+                      <p className="text-[11px] text-dim">Email the invoice details to the recipient after creation</p>
                     </div>
                   </label>
 
@@ -545,17 +557,19 @@ export default function BillingPage() {
                   )}
                 </div>
 
+                {formError && <p className="text-xs text-red-400">{formError}</p>}
+
                 {/* Actions */}
                 <div className="flex items-center justify-end gap-3 pt-1" style={{ borderTop: "1px solid var(--vk-border)" }}>
-                  <button className="btn-secondary text-sm" onClick={() => handleCreate(true)}>
+                  <button className="btn-secondary text-sm" onClick={() => handleCreate(true)} disabled={saving}>
                     Save as Draft
                   </button>
                   <button
                     className="btn-primary text-sm"
                     onClick={() => handleCreate(false)}
-                    disabled={!clientName.trim() || items.every((it) => !it.description.trim())}
+                    disabled={saving || !clientName.trim() || items.every((it) => !it.description.trim()) || (sendEmail && !emailTo.trim())}
                   >
-                    {sendEmail ? "Create & Send" : "Create Invoice"}
+                    {saving ? "Saving…" : sendEmail ? "Create & Send" : "Create Invoice"}
                   </button>
                 </div>
               </div>
