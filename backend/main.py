@@ -135,6 +135,15 @@ app = FastAPI(
     lifespan=lifespan,
     docs_url="/docs" if settings.debug else None,
     redoc_url="/redoc" if settings.debug else None,
+    # Starlette's default trailing-slash redirect answers with an absolute
+    # Location on THIS service's own origin. The frontend only reaches us
+    # through its Next.js rewrite proxy (a different origin the auth cookie
+    # is scoped to), so a redirect here sends the browser straight to our
+    # origin, the cookie doesn't follow, and the request 401s. Disable it so
+    # a trailing-slash mismatch is a plain 404 (caught in review/testing)
+    # instead of a silent cross-origin auth drop (manifests as the app
+    # randomly logging the user out mid-navigation).
+    redirect_slashes=False,
 )
 
 app.state.limiter = limiter

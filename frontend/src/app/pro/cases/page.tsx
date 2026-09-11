@@ -128,7 +128,7 @@ export default function CasesPage() {
   async function fetchCases(opts: { silent?: boolean } = {}) {
     setLoading(true);
     try {
-      const { data } = await backendApi.get("/cases", { params: { per_page: 50 } });
+      const { data } = await backendApi.get("/cases/", { params: { per_page: 50 } });
       const items: Case[] = data?.items ?? data ?? [];
       if (items.length > 0) setCases(items);
       else setCases(MOCK_CASES); // fallback to mock if backend empty
@@ -147,7 +147,7 @@ export default function CasesPage() {
     if (!form.title.trim() || !form.client_name.trim()) return;
     setSaving(true);
     try {
-      const { data } = await backendApi.post("/cases", {
+      const { data } = await backendApi.post("/cases/", {
         ...form,
         filing_date: form.filing_date || undefined,
         next_hearing: form.next_hearing || undefined,
