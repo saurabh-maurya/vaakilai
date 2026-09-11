@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { Markdown } from "@/components/Markdown";
-import { aiApi } from "@/lib/api";
+import { aiApi, getApiErrorMessage } from "@/lib/api";
 import {
   Shield, Scale, Loader2, AlertCircle, CheckCircle, AlertTriangle,
   ChevronDown, ChevronUp,
@@ -21,22 +21,30 @@ interface SharedInput {
   relief_sought: string;
 }
 
+// Matches ai_service SafetyResult (routes/litigation_safety.py)
 interface PrefilingResult {
-  overall_risk: "low" | "medium" | "high";
+  overall_risk: "low" | "medium" | "high" | "critical";
   risk_score: number;
   limitation_status: string;
-  jurisdiction: string;
-  locus_standi: string;
+  limitation_risk: "ok" | "warning" | "danger";
+  jurisdiction_ok: boolean;
+  jurisdiction_notes: string;
+  locus_standi_notes: string;
+  procedural_risks: string[];
+  alternative_remedies: string[];
   cost_estimate: string;
-  success_probability: number;
+  success_probability: string;
   recommendations: string[];
 }
 
+// Matches ai_service predict_outcome() (agents/prediction_agent.py)
 interface PredictResult {
-  predicted_verdict: string;
-  confidence: number;
+  prediction: string;
+  confidence: number; // 0-1
+  confidence_label: string;
   reasoning: string;
-  similar_cases: { title: string; citation: string; outcome: string }[];
+  disclaimer?: string;
+  similar_cases: { title?: string; citation?: string; decision?: string; year?: number }[];
 }
 
 const EMPTY_INPUT: SharedInput = {
@@ -48,64 +56,64 @@ const RISK_STYLES = {
   low: { class: "text-green-400", badge: "vk-badge-green", label: "Low Risk" },
   medium: { class: "text-yellow-400", badge: "vk-badge-gold", label: "Medium Risk" },
   high: { class: "text-red-400", badge: "vk-badge-red", label: "High Risk" },
+  critical: { class: "text-red-500", badge: "vk-badge-red", label: "Critical Risk" },
 };
 
-const MOCK_PREFILING: PrefilingResult = {
-  overall_risk: "medium",
-  risk_score: 52,
-  limitation_status: "Within time — 14 months remaining",
-  jurisdiction: "Delhi High Court — appropriate",
-  locus_standi: "Petitioner has clear standing as affected party",
-  cost_estimate: "₹80,000 – ₹1,50,000 (estimated legal fees + court fees)",
-  success_probability: 62,
-  recommendations: [
-    "File within 3 months to avoid limitation risk.",
-    "Obtain certified copies of prior orders before filing.",
-    "Consider sending a legal notice first to strengthen the record.",
-    "Ensure all evidence is authenticated and admissible.",
-  ],
-};
-
-const MOCK_PREDICT: PredictResult = {
-  predicted_verdict: "Partially in favour of petitioner — relief likely on main reliefs but damages may be reduced",
-  confidence: 71,
-  reasoning: "Based on similar cases, courts have consistently granted injunctive relief under these facts. However, quantum of damages is uncertain given the absence of quantified loss evidence. The strength of the statutory interpretation argument is high.",
-  similar_cases: [
-    { title: "Maneka Gandhi vs. Union of India", citation: "AIR 1978 SC 597", outcome: "Allowed — expanded Article 21 scope" },
-    { title: "K.S. Puttaswamy vs. Union of India", citation: "(2017) 10 SCC 1", outcome: "Allowed — fundamental right recognised" },
-  ],
-};
+/** Combine the structured input fields into the single narrative the AI service expects. */
+function buildCaseFacts(input: SharedInput): string {
+  return [
+    input.parties && `Parties: ${input.parties}`,
+    input.background,
+    input.key_events && `Key events: ${input.key_events}`,
+    input.evidence && `Evidence available: ${input.evidence}`,
+    input.statutes && `Applicable statutes: ${input.statutes}`,
+    input.prior_orders && `Prior orders/judgments: ${input.prior_orders}`,
+  ].filter(Boolean).join("\n\n");
+}
 
 export default function CaseIntelligencePage() {
   const [mode, setMode] = useState<CIMode>("prefiling");
   const [input, setInput] = useState<SharedInput>({ ...EMPTY_INPUT });
-  const [clientPosition, setClientPosition] = useState("Petitioner / Plaintiff");
+  const [court, setCourt] = useState("");
+  const [practiceArea, setPracticeArea] = useState("");
   const [causeOfActionDate, setCauseOfActionDate] = useState("");
   const [clientType, setClientType] = useState("Individual");
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
   const [prefilingResult, setPrefilingResult] = useState<PrefilingResult | null>(null);
   const [predictResult, setPredictResult] = useState<PredictResult | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const hasResult = mode === "prefiling" ? !!prefilingResult : !!predictResult;
+  const caseFacts = buildCaseFacts(input);
+  const canRun = mode === "prefiling"
+    ? caseFacts.length >= 50 && input.relief_sought.trim().length >= 10 && court.trim().length > 0
+    : caseFacts.trim().length > 0;
 
   const handleRun = async () => {
     setLoading(true);
+    setError("");
     try {
       if (mode === "prefiling") {
-        const { data } = await aiApi.post("/safety-check", {
-          ...input, cause_of_action_date: causeOfActionDate, client_type: clientType,
-        });
+        const { data } = await aiApi.post<PrefilingResult>("/ai/safety/check", {
+          case_facts: caseFacts,
+          proposed_relief: input.relief_sought,
+          court,
+          cause_of_action_date: causeOfActionDate,
+          practice_area: practiceArea,
+          client_type: clientType.toLowerCase().replace(/\s+/g, "_"),
+        }, { timeout: 90_000 });
         setPrefilingResult(data);
       } else {
-        const { data } = await aiApi.post("/predict", {
-          ...input, client_position: clientPosition,
-        });
+        const { data } = await aiApi.post<PredictResult>("/ai/predict", {
+          case_facts: caseFacts,
+          practice_area: practiceArea,
+          court,
+        }, { timeout: 90_000 });
         setPredictResult(data);
       }
-    } catch {
-      if (mode === "prefiling") setPrefilingResult(MOCK_PREFILING);
-      else setPredictResult(MOCK_PREDICT);
+    } catch (err) {
+      setError(getApiErrorMessage(err, "Unable to complete this analysis right now."));
     } finally {
       setLoading(false);
     }
@@ -114,6 +122,7 @@ export default function CaseIntelligencePage() {
   const handleReset = () => {
     setPrefilingResult(null);
     setPredictResult(null);
+    setError("");
   };
 
   const updateInput = (key: keyof SharedInput) => (e: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>) =>
@@ -160,8 +169,19 @@ export default function CaseIntelligencePage() {
               <textarea className="vk-input resize-none" rows={4} placeholder="Describe the facts, the dispute, and what happened…" value={input.background} onChange={updateInput("background")} />
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="vk-label">Court / Forum {mode === "prefiling" && <span className="text-red-400">*</span>}</label>
+                <input className="vk-input" placeholder="e.g. Delhi High Court" value={court} onChange={(e) => setCourt(e.target.value)} />
+              </div>
+              <div>
+                <label className="vk-label">Practice Area</label>
+                <input className="vk-input" placeholder="e.g. Contract Law" value={practiceArea} onChange={(e) => setPracticeArea(e.target.value)} />
+              </div>
+            </div>
+
             <div>
-              <label className="vk-label">Relief Sought</label>
+              <label className="vk-label">Relief Sought {mode === "prefiling" && <span className="text-red-400">*</span>}</label>
               <input className="vk-input" placeholder="e.g. Injunction, damages of ₹10L, declaration…" value={input.relief_sought} onChange={updateInput("relief_sought")} />
             </div>
 
@@ -183,15 +203,6 @@ export default function CaseIntelligencePage() {
                     {["Individual", "Company", "Government Body", "Trust / NGO"].map((t) => <option key={t}>{t}</option>)}
                   </select>
                 </div>
-              </div>
-            )}
-
-            {mode === "predict" && (
-              <div>
-                <label className="vk-label">Client Position</label>
-                <select className="vk-input" value={clientPosition} onChange={(e) => setClientPosition(e.target.value)}>
-                  {["Petitioner / Plaintiff", "Respondent / Defendant", "Appellant", "Intervenor"].map((p) => <option key={p}>{p}</option>)}
-                </select>
               </div>
             )}
           </div>
@@ -223,9 +234,24 @@ export default function CaseIntelligencePage() {
             )}
           </div>
 
+          {!canRun && input.background.trim() && (
+            <p className="text-xs text-dim">
+              {mode === "prefiling"
+                ? "Pre-filing check needs at least 50 characters across parties/background/events, a court, and relief sought (10+ characters)."
+                : "Add case background to predict an outcome."}
+            </p>
+          )}
+
+          {error && (
+            <div className="vk-card p-3 flex items-center gap-2" style={{ border: "1px solid rgba(248,113,113,0.3)" }}>
+              <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+              <p className="text-xs" style={{ color: "var(--vk-text-muted)" }}>{error}</p>
+            </div>
+          )}
+
           <button
             onClick={handleRun}
-            disabled={loading || !input.parties.trim() || !input.background.trim()}
+            disabled={loading || !canRun}
             className="btn-primary w-full"
           >
             {loading
@@ -264,16 +290,16 @@ export default function CaseIntelligencePage() {
                   </div>
                   <div className="grid grid-cols-2 gap-3 text-xs mt-4">
                     <div className="rounded-lg p-3" style={{ background: "var(--vk-navy-light)" }}>
-                      <p className="text-dim mb-1">Limitation Status</p>
+                      <p className="text-dim mb-1">Limitation Status ({prefilingResult.limitation_risk})</p>
                       <p className="font-medium">{prefilingResult.limitation_status}</p>
                     </div>
                     <div className="rounded-lg p-3" style={{ background: "var(--vk-navy-light)" }}>
-                      <p className="text-dim mb-1">Jurisdiction</p>
-                      <p className="font-medium">{prefilingResult.jurisdiction}</p>
+                      <p className="text-dim mb-1">Jurisdiction {prefilingResult.jurisdiction_ok ? "— OK" : "— Issue"}</p>
+                      <p className="font-medium">{prefilingResult.jurisdiction_notes}</p>
                     </div>
                     <div className="rounded-lg p-3" style={{ background: "var(--vk-navy-light)" }}>
                       <p className="text-dim mb-1">Locus Standi</p>
-                      <p className="font-medium">{prefilingResult.locus_standi}</p>
+                      <p className="font-medium">{prefilingResult.locus_standi_notes}</p>
                     </div>
                     <div className="rounded-lg p-3" style={{ background: "var(--vk-navy-light)" }}>
                       <p className="text-dim mb-1">Cost Estimate</p>
@@ -283,16 +309,47 @@ export default function CaseIntelligencePage() {
                 </div>
 
                 <div className="vk-card p-4">
-                  <div className="flex items-center gap-2 mb-3">
+                  <div className="flex items-center gap-2">
                     <CheckCircle className="w-4 h-4 text-green-400" />
                     <span className="text-sm font-semibold">
-                      Success Probability: <span className="text-gold">{prefilingResult.success_probability}%</span>
+                      Success Probability: <span className="text-gold">{prefilingResult.success_probability}</span>
                     </span>
                   </div>
-                  <div className="confidence-bar">
-                    <div className="confidence-fill" style={{ width: `${prefilingResult.success_probability}%` }} />
-                  </div>
                 </div>
+
+                {prefilingResult.procedural_risks?.length > 0 && (
+                  <div className="vk-card p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <AlertTriangle className="w-4 h-4 text-gold" />
+                      <span className="text-sm font-semibold">Procedural Risks</span>
+                    </div>
+                    <ul className="space-y-2">
+                      {prefilingResult.procedural_risks.map((r, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs text-dim">
+                          <span className="text-gold shrink-0 mt-0.5">→</span>
+                          <span>{r}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {prefilingResult.alternative_remedies?.length > 0 && (
+                  <div className="vk-card p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <Scale className="w-4 h-4 text-gold" />
+                      <span className="text-sm font-semibold">Alternative Remedies</span>
+                    </div>
+                    <ul className="space-y-2">
+                      {prefilingResult.alternative_remedies.map((r, i) => (
+                        <li key={i} className="flex items-start gap-2 text-xs text-dim">
+                          <span className="text-gold shrink-0 mt-0.5">→</span>
+                          <span>{r}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 <div className="vk-card p-4">
                   <div className="flex items-center gap-2 mb-3">
@@ -318,16 +375,17 @@ export default function CaseIntelligencePage() {
               <div className="vk-card p-5">
                 <div className="flex items-center gap-2 mb-3">
                   <Scale className="w-5 h-5 text-gold" />
-                  <span className="font-semibold">Predicted Verdict</span>
+                  <span className="font-semibold">Predicted Outcome</span>
                 </div>
-                <p className="text-sm mb-4">{predictResult.predicted_verdict}</p>
+                <p className="text-sm mb-4">{predictResult.prediction}</p>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-dim">Confidence</span>
+                  <span className="text-xs text-dim">Confidence ({predictResult.confidence_label})</span>
                   <div className="confidence-bar flex-1">
-                    <div className="confidence-fill" style={{ width: `${predictResult.confidence}%` }} />
+                    <div className="confidence-fill" style={{ width: `${Math.round((predictResult.confidence || 0) * 100)}%` }} />
                   </div>
-                  <span className="text-xs font-bold text-gold">{predictResult.confidence}%</span>
+                  <span className="text-xs font-bold text-gold">{Math.round((predictResult.confidence || 0) * 100)}%</span>
                 </div>
+                {predictResult.disclaimer && <p className="text-[11px] text-dim mt-3">{predictResult.disclaimer}</p>}
               </div>
 
               <div className="vk-card p-4">
@@ -346,10 +404,10 @@ export default function CaseIntelligencePage() {
                       <div key={i} className="rounded-lg p-3 text-xs" style={{ background: "var(--vk-navy-light)" }}>
                         <div className="flex items-start justify-between gap-2">
                           <div>
-                            <p className="font-semibold">{c.title}</p>
-                            <p className="font-mono text-gold mt-0.5">{c.citation}</p>
+                            <p className="font-semibold">{c.title || "Untitled"}{c.year ? ` (${c.year})` : ""}</p>
+                            {c.citation && <p className="font-mono text-gold mt-0.5">{c.citation}</p>}
                           </div>
-                          <span className="vk-badge vk-badge-green shrink-0">{c.outcome}</span>
+                          {c.decision && <span className="vk-badge vk-badge-green shrink-0">{c.decision}</span>}
                         </div>
                       </div>
                     ))}

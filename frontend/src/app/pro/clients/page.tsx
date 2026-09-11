@@ -2,45 +2,57 @@
 
 import { useState, useEffect } from "react";
 import { AppLayout } from "@/components/layout/AppLayout";
-import { Users, Plus, Mail, MessageSquare, Folder, Clock, CheckCircle, XCircle, Send } from "lucide-react";
-import { backendApi } from "@/lib/api";
+import { Users, Plus, Mail, MessageSquare, Folder, Clock, CheckCircle, XCircle, Send, UserPlus } from "lucide-react";
+import { backendApi, getApiErrorMessage } from "@/lib/api";
 import { getInitials } from "@/lib/utils";
 
 interface Client {
   id: string;
   name: string;
-  email: string;
+  email?: string;
   phone?: string;
-  status: string;
-  cases_count: number;
-  last_activity: string;
-  joined_at: string;
+  notes?: string;
+  created_at: string;
 }
 
-interface Message {
+interface CaseSummary {
   id: string;
-  content: string;
-  sender_role: string;
-  created_at: string;
+  title: string;
+}
+
+interface UpdateLog {
+  id: string;
+  message: string;
+  channel: string;
+  sent_at: string;
 }
 
 export default function LawyerClientsPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showInvite, setShowInvite] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteNote, setInviteNote] = useState("");
-  const [sending, setSending] = useState(false);
-  const [sentMsg, setSentMsg] = useState("");
+
+  // Add-client form
+  const [showAdd, setShowAdd] = useState(false);
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [inviteToPortal, setInviteToPortal] = useState(false);
+  const [note, setNote] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [banner, setBanner] = useState("");
+
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [cases, setCases] = useState<CaseSummary[]>([]);
+  const [updates, setUpdates] = useState<UpdateLog[]>([]);
   const [newMsg, setNewMsg] = useState("");
   const [sendingMsg, setSendingMsg] = useState(false);
 
   const load = async () => {
+    setLoading(true);
     try {
-      const { data } = await backendApi.get("/client-portal/clients");
-      setClients(data.clients || []);
+      const { data } = await backendApi.get("/clients/");
+      setClients(data || []);
     } catch {
       setClients([]);
     } finally {
@@ -48,36 +60,69 @@ export default function LawyerClientsPage() {
     }
   };
 
-  const loadMessages = async (clientId: string) => {
+  const loadDetail = async (client: Client) => {
     try {
-      const { data } = await backendApi.get(`/client-portal/messages/${clientId}`);
-      setMessages(data.messages || []);
+      const [{ data: caseData }, { data: updateData }] = await Promise.all([
+        backendApi.get(`/clients/${client.id}/cases`),
+        backendApi.get(`/clients/${client.id}/updates`),
+      ]);
+      setCases(caseData || []);
+      setUpdates(updateData || []);
     } catch {
-      setMessages([]);
+      setCases([]);
+      setUpdates([]);
     }
   };
 
   useEffect(() => { load(); }, []);
 
   useEffect(() => {
-    if (selectedClient) loadMessages(selectedClient.id);
+    if (selectedClient) loadDetail(selectedClient);
   }, [selectedClient]);
 
-  const handleInvite = async () => {
-    if (!inviteEmail.trim()) return;
-    setSending(true);
-    setSentMsg("");
+  const resetForm = () => {
+    setName(""); setEmail(""); setPhone(""); setNote(""); setInviteToPortal(false); setFormError("");
+  };
+
+  const handleAddClient = async () => {
+    if (!name.trim()) return;
+    if (inviteToPortal && !email.trim()) {
+      setFormError("Client email is required to invite them to the portal.");
+      return;
+    }
+    setSaving(true);
+    setFormError("");
     try {
-      await backendApi.post("/client-portal/invite", { email: inviteEmail, note: inviteNote });
-      setSentMsg(`Invitation sent to ${inviteEmail}`);
-      setInviteEmail("");
-      setInviteNote("");
-      setShowInvite(false);
+      await backendApi.post("/clients/", {
+        name: name.trim(),
+        email: email.trim() || undefined,
+        phone: phone.trim() || undefined,
+        notes: note.trim() || undefined,
+      });
+
+      if (inviteToPortal) {
+        try {
+          await backendApi.post("/client/invite", {
+            client_email: email.trim(),
+            client_name: name.trim(),
+            message: note.trim(),
+          });
+          setBanner(`${name.trim()} added and invited to the client portal at ${email.trim()}.`);
+        } catch (err) {
+          // Client record was still created — only the invite failed.
+          setBanner(`${name.trim()} added, but the portal invitation failed: ${getApiErrorMessage(err)}`);
+        }
+      } else {
+        setBanner(`${name.trim()} added to your clients.`);
+      }
+
+      resetForm();
+      setShowAdd(false);
       load();
-    } catch {
-      setSentMsg("Failed to send invitation.");
+    } catch (err) {
+      setFormError(getApiErrorMessage(err, "Failed to add client."));
     } finally {
-      setSending(false);
+      setSaving(false);
     }
   };
 
@@ -85,21 +130,15 @@ export default function LawyerClientsPage() {
     if (!newMsg.trim() || !selectedClient) return;
     setSendingMsg(true);
     try {
-      await backendApi.post("/client-portal/messages", {
-        case_id: selectedClient.id,
-        content: newMsg,
+      await backendApi.post(`/clients/${selectedClient.id}/updates`, {
+        message: newMsg,
+        channel: "email",
       });
       setNewMsg("");
-      loadMessages(selectedClient.id);
+      loadDetail(selectedClient);
     } catch { } finally {
       setSendingMsg(false);
     }
-  };
-
-  const statusColor = (status: string) => {
-    if (status === "active") return "vk-badge-green";
-    if (status === "pending") return "vk-badge-gold";
-    return "vk-badge-muted";
   };
 
   return (
@@ -108,61 +147,83 @@ export default function LawyerClientsPage() {
 
         {/* Header */}
         <div className="flex justify-between items-center">
-          <p className="text-sm text-dim">{clients.length} clients</p>
+          <p className="text-sm text-dim">{clients.length} client{clients.length !== 1 ? "s" : ""}</p>
           <button
             className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5"
-            onClick={() => setShowInvite(true)}
+            onClick={() => { resetForm(); setShowAdd(true); }}
           >
-            <Plus className="w-3.5 h-3.5" /> Invite Client
+            <UserPlus className="w-3.5 h-3.5" /> Add Client
           </button>
         </div>
 
-        {sentMsg && (
+        {banner && (
           <div className="vk-disclaimer rounded-lg p-3 text-xs flex items-center gap-2">
             <CheckCircle className="w-3.5 h-3.5 text-green-400" />
-            {sentMsg}
+            {banner}
           </div>
         )}
 
-        {/* Invite modal */}
-        {showInvite && (
+        {/* Add client form */}
+        {showAdd && (
           <div className="vk-card p-5 space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="font-semibold text-sm">Invite Client</h3>
-              <button onClick={() => setShowInvite(false)} className="text-dim hover:text-white">
+              <h3 className="font-semibold text-sm">Add Client</h3>
+              <button onClick={() => setShowAdd(false)} className="text-dim hover:text-white">
                 <XCircle className="w-4 h-4" />
               </button>
             </div>
             <div className="space-y-3">
               <div>
-                <label className="vk-label">Client Email *</label>
+                <label className="vk-label">Client Name *</label>
+                <input className="vk-input w-full" placeholder="e.g. Ranjeet Sharma" value={name} onChange={e => setName(e.target.value)} />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="vk-label">Email</label>
+                  <input className="vk-input w-full" type="email" placeholder="client@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+                </div>
+                <div>
+                  <label className="vk-label">Phone</label>
+                  <input className="vk-input w-full" placeholder="+91…" value={phone} onChange={e => setPhone(e.target.value)} />
+                </div>
+              </div>
+
+              <label className="flex items-start gap-2.5 rounded-lg p-3 cursor-pointer" style={{ background: "var(--vk-navy-light)", border: "1px solid var(--vk-border)" }}>
                 <input
-                  className="vk-input w-full"
-                  type="email"
-                  placeholder="client@example.com"
-                  value={inviteEmail}
-                  onChange={e => setInviteEmail(e.target.value)}
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={inviteToPortal}
+                  onChange={e => setInviteToPortal(e.target.checked)}
                 />
-              </div>
-              <div>
-                <label className="vk-label">Personal Note (optional)</label>
-                <textarea
-                  className="vk-input w-full h-20 resize-none"
-                  placeholder="Add a note to the invitation..."
-                  value={inviteNote}
-                  onChange={e => setInviteNote(e.target.value)}
-                />
-              </div>
+                <span className="text-xs" style={{ color: "var(--vk-text-muted)" }}>
+                  <span className="font-medium" style={{ color: "var(--vk-text)" }}>Invite to the client portal</span> — if they already
+                  have (or should get) a VakilAI account, send an invite to this email so they can log in and track their case.
+                </span>
+              </label>
+
+              {inviteToPortal && (
+                <div>
+                  <label className="vk-label">Personal Note (optional)</label>
+                  <textarea
+                    className="vk-input w-full h-16 resize-none"
+                    placeholder="Add a note to the invitation..."
+                    value={note}
+                    onChange={e => setNote(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {formError && <p className="text-xs text-red-400">{formError}</p>}
             </div>
             <div className="flex gap-2">
-              <button className="btn-secondary text-xs py-2 px-4" onClick={() => setShowInvite(false)}>Cancel</button>
+              <button className="btn-secondary text-xs py-2 px-4" onClick={() => setShowAdd(false)}>Cancel</button>
               <button
                 className="btn-primary text-xs py-2 px-4 flex items-center gap-1.5"
-                onClick={handleInvite}
-                disabled={sending || !inviteEmail.trim()}
+                onClick={handleAddClient}
+                disabled={saving || !name.trim()}
               >
-                <Mail className="w-3.5 h-3.5" />
-                {sending ? "Sending..." : "Send Invitation"}
+                {inviteToPortal ? <Mail className="w-3.5 h-3.5" /> : <Plus className="w-3.5 h-3.5" />}
+                {saving ? "Saving…" : inviteToPortal ? "Add & Invite" : "Add Client"}
               </button>
             </div>
           </div>
@@ -177,7 +238,7 @@ export default function LawyerClientsPage() {
               <div className="vk-card p-8 text-center text-dim">
                 <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p className="text-sm font-semibold">No clients yet</p>
-                <p className="text-xs mt-1">Invite clients to get started.</p>
+                <p className="text-xs mt-1">Add a client to get started.</p>
               </div>
             ) : (
               clients.map(client => (
@@ -195,15 +256,8 @@ export default function LawyerClientsPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold truncate" style={{ color: "var(--vk-text)" }}>{client.name}</p>
-                      <p className="text-xs text-dim truncate">{client.email}</p>
+                      <p className="text-xs text-dim truncate">{client.email || client.phone || "No contact info"}</p>
                     </div>
-                    <span className={`vk-badge text-[10px] shrink-0 ${statusColor(client.status)}`}>{client.status}</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-[11px] text-dim">
-                    <span className="flex items-center gap-1"><Folder className="w-3 h-3" />{client.cases_count} cases</span>
-                    <span className="flex items-center gap-1"><Clock className="w-3 h-3" />
-                      {new Date(client.last_activity).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}
-                    </span>
                   </div>
                 </button>
               ))
@@ -231,36 +285,35 @@ export default function LawyerClientsPage() {
                     </div>
                     <div>
                       <p className="font-semibold text-sm" style={{ color: "var(--vk-text)" }}>{selectedClient.name}</p>
-                      <p className="text-xs text-dim">{selectedClient.email}</p>
+                      <p className="text-xs text-dim">{selectedClient.email || selectedClient.phone || "No contact info"}</p>
                     </div>
                     <div className="ml-auto flex items-center gap-2">
-                      <span className={`vk-badge text-[10px] ${statusColor(selectedClient.status)}`}>{selectedClient.status}</span>
-                      <span className="vk-badge vk-badge-muted text-[10px]">{selectedClient.cases_count} cases</span>
+                      <span className="vk-badge vk-badge-muted text-[10px] flex items-center gap-1">
+                        <Folder className="w-3 h-3" />{cases.length} case{cases.length !== 1 ? "s" : ""}
+                      </span>
                     </div>
                   </div>
                 </div>
 
-                {/* Messages */}
+                {/* Updates / messages */}
                 <div className="flex-1 overflow-y-auto p-4 space-y-3">
-                  {messages.length === 0 ? (
+                  {updates.length === 0 ? (
                     <div className="text-center text-dim py-8">
                       <MessageSquare className="w-8 h-8 mx-auto mb-2 opacity-20" />
-                      <p className="text-sm">No messages yet. Start the conversation.</p>
+                      <p className="text-sm">No updates yet. Send the first one.</p>
                     </div>
                   ) : (
-                    messages.map(m => (
-                      <div key={m.id} className={`flex ${m.sender_role === "lawyer" || m.sender_role === "firm_admin" ? "justify-end" : "justify-start"}`}>
+                    updates.map(u => (
+                      <div key={u.id} className="flex justify-end">
                         <div
                           className="max-w-[75%] rounded-xl px-3.5 py-2.5 text-sm"
-                          style={
-                            m.sender_role === "lawyer" || m.sender_role === "firm_admin"
-                              ? { background: "var(--vk-gold-dim)", color: "var(--vk-text)" }
-                              : { background: "rgba(255,255,255,0.06)", color: "var(--vk-text-muted)" }
-                          }
+                          style={{ background: "var(--vk-gold-dim)", color: "var(--vk-text)" }}
                         >
-                          {m.content}
-                          <p className="text-[10px] text-dim mt-1">
-                            {new Date(m.created_at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                          {u.message}
+                          <p className="text-[10px] text-dim mt-1 flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5" />
+                            {new Date(u.sent_at).toLocaleString("en-IN", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                            {" · "}{u.channel}
                           </p>
                         </div>
                       </div>
@@ -272,7 +325,7 @@ export default function LawyerClientsPage() {
                 <div className="p-3 border-t flex gap-2" style={{ borderColor: "var(--vk-border)" }}>
                   <input
                     className="vk-input flex-1 text-sm"
-                    placeholder="Type a message..."
+                    placeholder="Send an update to this client..."
                     value={newMsg}
                     onChange={e => setNewMsg(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSendMessage()}

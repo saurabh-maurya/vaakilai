@@ -110,7 +110,24 @@ export default function JudgeAnalyticsPage() {
     setResult(null);
     setError("");
     try {
-      const { data } = await aiApi.post("/ai/judge-analytics/judge", form);
+      // Retry with backoff so a cold-started AI service (Render free tier spins
+      // down when idle and returns 502/timeouts while waking) self-heals instead
+      // of failing on the first request — same pattern as aiConsultApi.consult.
+      let data;
+      let lastErr: unknown;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          ({ data } = await aiApi.post("/ai/judge-analytics/judge", form, { timeout: 90_000 }));
+          break;
+        } catch (err) {
+          lastErr = err;
+          const status = (err as { response?: { status?: number } }).response?.status;
+          const transient = status === undefined || status === 502 || status === 503 || status === 504;
+          if (!transient || attempt === 2) throw err;
+          await new Promise((r) => setTimeout(r, 3000 * (attempt + 1)));
+        }
+      }
+      if (!data) throw lastErr;
       setResult(data);
     } catch {
       setError("Unable to analyse. Please ensure cases are indexed or try again.");

@@ -109,6 +109,19 @@ async def send_client_update(client_id: str, payload: UpdateMessage, current_use
     return {"message": "Update sent to client", "channel": payload.channel}
 
 
+@router.get("/{client_id}/updates")
+async def list_client_updates(client_id: str, current_user: dict = Depends(require_lawyer)):
+    db = get_db()
+    cursor = db.communication_logs.find(
+        {"client_id": client_id, "lawyer_id": current_user["user_id"]}
+    ).sort("sent_at", 1)
+    results = []
+    async for doc in cursor:
+        doc["id"] = str(doc.pop("_id"))
+        results.append(doc)
+    return results
+
+
 # --- Client portal (scoped to own cases) ---
 @router.get("/portal/cases")
 async def client_portal_cases(current_user: dict = Depends(get_current_user)):

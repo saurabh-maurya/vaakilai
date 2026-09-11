@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { AppLayout } from "@/components/layout/AppLayout";
 import type { Case, CaseStatus } from "@/types";
 import { formatDate } from "@/lib/utils";
@@ -88,6 +89,7 @@ const EMPTY_FORM: NewCaseForm = {
 };
 
 export default function CasesPage() {
+  const router = useRouter();
   const [view, setView]               = useState<ViewMode>("table");
   const [search, setSearch]           = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("");
@@ -258,7 +260,7 @@ export default function CasesPage() {
                 </tr>
               ) : (
                 filtered.map((c) => (
-                  <tr key={c.id} className="cursor-pointer">
+                  <tr key={c.id} className="cursor-pointer" onClick={() => router.push(`/cases/${c.id}`)}>
                     <td>
                       <div>
                         <p className="text-sm font-medium truncate max-w-[180px]" style={{ color: "var(--vk-text)" }}>{c.title}</p>
@@ -314,7 +316,7 @@ export default function CasesPage() {
                 </div>
                 <div className="space-y-2">
                   {cols.map((c) => (
-                    <div key={c.id} className="kanban-card">
+                    <div key={c.id} className="kanban-card cursor-pointer" onClick={() => router.push(`/cases/${c.id}`)}>
                       <p className="text-xs font-medium mb-1" style={{ color: "var(--vk-text)" }}>{c.title}</p>
                       <p className="text-[11px] text-dim mb-2">{c.client_name}</p>
                       <div className="flex items-center justify-between">

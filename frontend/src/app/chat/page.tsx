@@ -126,7 +126,7 @@ function ChatPageContent() {
         </div>
       }
     >
-      <div className="flex flex-col h-full max-w-3xl mx-auto" style={{ height: "calc(100vh - 140px)" }}>
+      <div className="flex flex-col h-full max-w-4xl mx-auto" style={{ height: "calc(100vh - 140px)" }}>
         {/* Filters panel */}
         {showFilters && (
           <div

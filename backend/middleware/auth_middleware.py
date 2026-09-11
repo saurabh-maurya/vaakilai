@@ -117,6 +117,11 @@ def require_lawyer_pro():
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
         if role == "admin":
             return current_user
+        # TEMP: Pro plan gating disabled — mirrors require_plan()'s early return so
+        # Contracts CLM / IP Portfolio don't 403 every advocate stuck on the free
+        # plan. Re-enable by removing this early return (and the one in require_plan).
+        return current_user
+
         db = get_db()
         try:
             uid = ObjectId(current_user["user_id"])
