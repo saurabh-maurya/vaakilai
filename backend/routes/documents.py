@@ -141,7 +141,7 @@ async def presigned_upload_url(filename: str, content_type: str, current_user: d
     )
 
 
-@router.get("/")
+@router.get("")
 async def list_documents(case_id: str = None, current_user: dict = Depends(get_current_user)):
     db = get_db()
     query = {"user_id": current_user["user_id"]}

@@ -37,7 +37,7 @@ def doc_out(doc: dict) -> dict:
     return doc
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def book_consultation(payload: ConsultationCreate, current_user: dict = Depends(get_current_user)):
     db = get_db()
     lawyer = await db.lawyer_profiles.find_one({"_id": ObjectId(payload.lawyer_id)})
@@ -67,7 +67,7 @@ async def get_consultation(consultation_id: str, current_user: dict = Depends(ge
     return doc_out(doc)
 
 
-@router.get("/")
+@router.get("")
 async def list_consultations(current_user: dict = Depends(get_current_user)):
     db = get_db()
     role = current_user["role"]

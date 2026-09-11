@@ -94,7 +94,7 @@ async def analyse_judge(payload: JudgeAnalyticsRequest, current_user: dict = Dep
 
         # Search for cases by this judge
         query = f"judge {payload.judge_name} {payload.court} {payload.practice_area}".strip()
-        results = case_store.search(query, k=payload.top_k)
+        results = await case_store.search(query, k=payload.top_k)
 
         if not results:
             # Return a demo profile when no cases are indexed
@@ -143,7 +143,7 @@ async def analyse_court(payload: CourtTendencyRequest, current_user: dict = Depe
         from rag.vector_store import case_store
 
         query = f"court {payload.court} {payload.practice_area}".strip()
-        results = case_store.search(query, k=50)
+        results = await case_store.search(query, k=50)
 
         if not results:
             return {

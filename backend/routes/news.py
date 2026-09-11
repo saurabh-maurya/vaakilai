@@ -193,7 +193,7 @@ async def _get_articles() -> list[dict]:
 VALID_CATEGORIES = {"general", "constitutional", "corporate", "technology", "consumer", "criminal", "legislation", "research", "all"}
 
 
-@router.get("/")
+@router.get("")
 async def get_news(
     category: Optional[str] = Query(default="all"),
     limit: int = Query(default=20, ge=1, le=50),

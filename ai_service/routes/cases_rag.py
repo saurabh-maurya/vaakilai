@@ -73,7 +73,7 @@ async def index_from_indian_kanoon(body: IndexByQueryRequest, current_user: dict
     """Scrape Indian Kanoon and index cases into FAISS."""
     cases = await bulk_scrape(body.queries, cases_per_query=body.cases_per_query)
     if not cases:
-        return {"indexed": 0, "message": "No cases found"}
+        return {"indexed": 0, "total": case_store.total_cases(), "message": "No cases found"}
     count = await case_store.add_cases(cases)
     return {"indexed": count, "total": case_store.total_cases()}
 

@@ -273,9 +273,13 @@ export const aiConsultApi = {
   },
 
   generate: async (templateId: string, fields: Record<string, string>): Promise<{ content: string; download_url?: string }> => {
+    // Same 90s allowance as consult(): the LLM provider chain (Claude → Groq →
+    // Gemini → HuggingFace fallback) can take 20-30s+ per hop when an earlier
+    // provider errors out, which blows past the client's default 30s timeout.
     const { data } = await aiApi.post<{ content: string; download_url?: string }>(
       "/ai/documents/generate",
-      { template_id: templateId, fields }
+      { template_id: templateId, fields },
+      { timeout: 90_000 }
     );
     return data;
   },
@@ -286,7 +290,7 @@ export const aiConsultApi = {
     summary: string;
     risk_score: number;
   }> => {
-    const { data } = await aiApi.post("/ai/documents/review", { document_text: documentText });
+    const { data } = await aiApi.post("/ai/documents/review", { document_text: documentText }, { timeout: 90_000 });
     return data;
   },
 

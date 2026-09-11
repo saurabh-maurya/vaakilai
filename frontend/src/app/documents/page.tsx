@@ -268,8 +268,9 @@ export default function DocumentsPage() {
   const [comparing, setComparing] = useState(false);
   const [compareResult, setCompareResult] = useState<{
     summary: string;
-    risk_changes: { clause: string; change: string; severity: "high" | "medium" | "low" }[];
-    key_differences: { section: string; original: string; revised: string }[];
+    risk_changes: { clause_type: string; change_summary: string; risk_direction: string; severity: "high" | "medium" | "low" }[];
+    key_differences: string[];
+    recommendation?: string;
   } | null>(null);
 
   // Deep-link: /documents?tab=review opens the AI Review tab directly
@@ -283,21 +284,24 @@ export default function DocumentsPage() {
     if (!docA.trim() || !docB.trim()) return;
     setComparing(true);
     try {
-      const { data } = await aiApi.post("/ai/docs/compare", { doc_a: docA, doc_b: docB, doc_type: docType, focus_areas: focusAreas });
+      // Backend expects focus_areas as a string list, not the raw comma-separated input.
+      const focusAreasList = focusAreas
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+      const { data } = await aiApi.post(
+        "/ai/docs/compare",
+        { doc_a: docA, doc_b: docB, doc_type: docType, focus_areas: focusAreasList.length ? focusAreasList : undefined },
+        { timeout: 90_000 }
+      );
       setCompareResult(data);
-    } catch {
-      setCompareResult({
-        summary: "The revised document introduces stricter termination terms and shifts liability clauses in favour of the service provider. Overall risk increased.",
-        risk_changes: [
-          { clause: "Clause 9 — Termination", change: "Notice period reduced from 30 to 7 days", severity: "high" },
-          { clause: "Clause 14 — Indemnity", change: "Client now bears unlimited indemnity", severity: "high" },
-          { clause: "Clause 6 — Payment terms", change: "Late payment penalty increased to 3% per month", severity: "medium" },
-        ],
-        key_differences: [
-          { section: "Termination", original: "Either party may terminate with 30 days written notice.", revised: "Service provider may terminate with 7 days notice for any reason." },
-          { section: "Liability cap", original: "Liability capped at contract value.", revised: "Liability cap removed for data breaches." },
-        ],
-      });
+    } catch (err) {
+      const status = (err as { response?: { status?: number } }).response?.status;
+      if (status === 403) {
+        toast.error("Document comparison is a Pro feature. Upgrade to access it.");
+      } else {
+        toast.error("Couldn't compare the documents right now. Please try again in a moment.");
+      }
     } finally {
       setComparing(false);
     }
@@ -320,7 +324,7 @@ export default function DocumentsPage() {
       const result = await aiConsultApi.generate(selectedDoc.id, formValues);
       setGeneratedContent(result.content);
     } catch {
-      setGeneratedContent(`[Demo] This is a generated ${selectedDoc.name} document.\n\nDraft content will appear here once the AI service is connected.`);
+      toast.error("Couldn't generate the document right now. Please try again in a moment.");
     } finally {
       setGenerating(false);
     }
@@ -337,10 +341,7 @@ export default function DocumentsPage() {
       setReviewSummary(result.summary);
       setRiskScore(result.risk_score);
     } catch {
-      // Mock review
-      setReviewResult(REVIEW_RISKS);
-      setReviewSummary("This document contains 1 high-risk and 2 medium-risk clauses that should be reviewed before signing.");
-      setRiskScore(62);
+      toast.error("Couldn't analyse the document right now. Please try again in a moment.");
     } finally {
       setReviewing(false);
     }
@@ -730,10 +731,11 @@ export default function DocumentsPage() {
                           {icon}
                           <div>
                             <div className="flex items-center gap-2 mb-0.5">
-                              <span className="text-sm font-medium">{r.clause}</span>
+                              <span className="text-sm font-medium capitalize">{r.clause_type}</span>
                               <span className={`vk-badge ${badge} capitalize text-[11px]`}>{r.severity}</span>
+                              <span className="text-[11px] text-dim capitalize">risk {r.risk_direction}</span>
                             </div>
-                            <p className="text-xs text-dim">{r.change}</p>
+                            <p className="text-xs text-dim">{r.change_summary}</p>
                           </div>
                         </div>
                       );
@@ -745,23 +747,20 @@ export default function DocumentsPage() {
               {compareResult.key_differences.length > 0 && (
                 <div>
                   <h3 className="text-xs font-semibold uppercase tracking-wider text-dim mb-3">Key Differences</h3>
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {compareResult.key_differences.map((d, i) => (
-                      <div key={i} className="vk-card p-4">
-                        <p className="text-xs font-semibold text-gold mb-2">{d.section}</p>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="rounded-lg p-3 text-xs" style={{ background: "rgba(96,165,250,0.06)", border: "1px solid rgba(96,165,250,0.15)" }}>
-                            <p className="text-blue-400 font-semibold mb-1">{docALabel}</p>
-                            <p className="text-dim leading-relaxed">{d.original}</p>
-                          </div>
-                          <div className="rounded-lg p-3 text-xs" style={{ background: "rgba(251,191,36,0.06)", border: "1px solid rgba(251,191,36,0.15)" }}>
-                            <p className="text-amber-400 font-semibold mb-1">{docBLabel}</p>
-                            <p className="text-dim leading-relaxed">{d.revised}</p>
-                          </div>
-                        </div>
+                      <div key={i} className="vk-card p-3 text-xs text-dim leading-relaxed">
+                        {d}
                       </div>
                     ))}
                   </div>
+                </div>
+              )}
+
+              {compareResult.recommendation && (
+                <div className="vk-card p-4">
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-dim mb-2">Recommendation</h3>
+                  <p className="text-sm">{compareResult.recommendation}</p>
                 </div>
               )}
             </div>

@@ -45,7 +45,7 @@ async def _get_case_owned(db, case_id: str, user_id: str, role: str) -> dict:
     return doc
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_case(payload: CaseCreate, current_user: dict = Depends(require_lawyer)):
     db = get_db()
     # Accept both the UI field names and the legacy aliases.
@@ -73,7 +73,7 @@ async def create_case(payload: CaseCreate, current_user: dict = Depends(require_
     return doc_out(case)
 
 
-@router.get("/")
+@router.get("")
 async def list_cases(status: str = None, current_user: dict = Depends(require_lawyer)):
     db = get_db()
     query = {"lawyer_id": current_user["user_id"]}

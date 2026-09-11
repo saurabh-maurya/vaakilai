@@ -5,6 +5,8 @@ from config import settings
 
 
 HF_API_BASE = "https://api-inference.huggingface.co/models"
+# api-inference.huggingface.co was retired by HF; feature-extraction now lives behind the router.
+HF_EMBEDDING_BASE = "https://router.huggingface.co/hf-inference/models"
 HEADERS = lambda: {"Authorization": f"Bearer {settings.huggingface_api_token}"}
 
 
@@ -67,7 +69,7 @@ class HuggingFaceEmbeddingProvider(BaseEmbeddingProvider):
     async def embed(self, texts: List[str]) -> List[List[float]]:
         async with httpx.AsyncClient(timeout=60) as client:
             resp = await client.post(
-                f"{HF_API_BASE}/{self.model}",
+                f"{HF_EMBEDDING_BASE}/{self.model}/pipeline/feature-extraction",
                 headers=HEADERS(),
                 json={"inputs": texts, "options": {"wait_for_model": True}},
             )

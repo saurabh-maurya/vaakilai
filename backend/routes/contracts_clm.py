@@ -102,7 +102,7 @@ def _days_until(date_str: str) -> Optional[int]:
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_contract(
     payload: ContractCreate,
     current_user: dict = Depends(require_lawyer_pro()),
@@ -129,7 +129,7 @@ async def create_contract(
     return {"id": str(result.inserted_id), "status": "draft"}
 
 
-@router.get("/")
+@router.get("")
 async def list_contracts(
     status: Optional[str] = Query(default=None),
     contract_type: Optional[str] = Query(default=None),

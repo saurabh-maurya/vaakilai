@@ -142,17 +142,24 @@ async def draft_notice(
 
     notice_text = await provider.complete(messages, max_tokens=1600, temperature=0.3)
 
-    label = (
-        f"Local AI — Ollama ({backend['model']})"
-        if backend["backend"] == "local"
-        else f"Hosted AI — {backend['model']}"
-    )
+    active = backend["chain"][0] if backend["chain"] else "none"
+    model_by_provider = {
+        "claude": backend.get("claude_model"),
+        "groq": backend.get("groq_model"),
+        "gemini": backend.get("gemini_model"),
+        "hosted": backend.get("hosted_model"),
+        "aalap": "Aalap (OpenNyAI)",
+        "ollama": "Ollama (local)",
+    }
+    model_name = model_by_provider.get(active) or active
+    is_local = active == "ollama"
+    label = f"Local AI — Ollama ({model_name})" if is_local else f"Hosted AI — {model_name}"
     return {
         "notice_text": notice_text.strip(),
         "notice_type": notice_type,
         "compliance_days": compliance_days,
-        "model": backend["model"],
+        "model": model_name,
         "powered_by": label,
-        "backend": backend["backend"],
-        "local_only": backend["backend"] == "local",
+        "backend": "local" if is_local else "hosted",
+        "local_only": is_local,
     }

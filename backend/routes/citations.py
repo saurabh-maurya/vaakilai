@@ -79,7 +79,7 @@ TREATMENT_COLORS = {
 
 # ── Endpoints ──────────────────────────────────────────────────────────────────
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def add_citation(
     payload: CitationCreate,
     current_user: dict = Depends(get_current_user),
@@ -102,7 +102,7 @@ async def add_citation(
     return {"id": str(result.inserted_id)}
 
 
-@router.get("/")
+@router.get("")
 async def list_citations(
     case_name: Optional[str] = Query(default=None, description="Filter by cited OR citing case name"),
     treatment: Optional[str] = Query(default=None),

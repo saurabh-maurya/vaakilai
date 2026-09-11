@@ -9,7 +9,7 @@ from services.notification_service import send_sms, send_email, send_whatsapp
 router = APIRouter()
 
 
-@router.get("/")
+@router.get("")
 async def get_notifications(current_user: dict = Depends(get_current_user)):
     db = get_db()
     cursor = db.notifications.find(

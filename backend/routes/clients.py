@@ -36,7 +36,7 @@ def doc_out(doc: dict) -> dict:
     return doc
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_client(payload: ClientCreate, current_user: dict = Depends(require_lawyer)):
     db = get_db()
     client = {
@@ -49,7 +49,7 @@ async def create_client(payload: ClientCreate, current_user: dict = Depends(requ
     return {"id": str(result.inserted_id)}
 
 
-@router.get("/")
+@router.get("")
 async def list_clients(current_user: dict = Depends(require_lawyer)):
     db = get_db()
     cursor = db.clients.find({"lawyer_id": current_user["user_id"]}).sort("name", 1)

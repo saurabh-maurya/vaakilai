@@ -1,6 +1,8 @@
 """
 Indian Kanoon scraper — fetches judgment metadata + text.
-Uses indiankanoon.org search API (free, no key needed).
+indiankanoon.org has no free JSON API; /search/ and /doc/ both return HTML
+(their paid api.indiankanoon.org is the only JSON endpoint), so this parses
+the public HTML pages with BeautifulSoup.
 Rate-limited to be polite to the server.
 """
 
@@ -13,11 +15,14 @@ import re
 from typing import List, Optional
 
 import httpx
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
 IK_SEARCH_URL = "https://indiankanoon.org/search/"
 IK_DOC_URL = "https://indiankanoon.org/doc/"
+
+_DOC_ID_RE = re.compile(r"/doc(?:fragment)?/(\d+)/")
 
 
 async def search_indian_kanoon(query: str, page_num: int = 0, max_results: int = 10) -> List[dict]:
@@ -29,21 +34,20 @@ async def search_indian_kanoon(query: str, page_num: int = 0, max_results: int =
     }
     headers = {
         "User-Agent": "VakilAI Legal Research Bot (legal research aggregator)",
-        "Accept": "application/json",
     }
 
     async with httpx.AsyncClient(timeout=30) as client:
         try:
             resp = await client.get(IK_SEARCH_URL, params=params, headers=headers)
             resp.raise_for_status()
-            data = resp.json()
+            html = resp.text
         except Exception as e:
             logger.error(f"Indian Kanoon search failed: {e}")
             return []
 
     cases = []
-    for doc in data.get("docs", [])[:max_results]:
-        case = _parse_ik_doc(doc)
+    for article in BeautifulSoup(html, "html.parser").select("article.result")[:max_results]:
+        case = _parse_ik_result(article)
         if case:
             cases.append(case)
     return cases
@@ -53,31 +57,39 @@ async def fetch_case_full_text(doc_id: str) -> Optional[str]:
     """Fetch full judgment text from Indian Kanoon."""
     headers = {
         "User-Agent": "VakilAI Legal Research Bot",
-        "Accept": "application/json",
     }
     async with httpx.AsyncClient(timeout=30) as client:
         try:
             resp = await client.get(f"{IK_DOC_URL}{doc_id}/", headers=headers)
             resp.raise_for_status()
-            data = resp.json()
-            return data.get("doc", "")
+            soup = BeautifulSoup(resp.text, "html.parser")
+            pre = soup.select_one("pre[id^='pre_']") or soup.select_one("div.judgments")
+            return pre.get_text("\n").strip() if pre else None
         except Exception as e:
             logger.error(f"Indian Kanoon fetch failed for {doc_id}: {e}")
             return None
 
 
-def _parse_ik_doc(doc: dict) -> Optional[dict]:
-    """Parse Indian Kanoon API doc into VakilAI case format."""
-    title = doc.get("title", "").strip()
+def _parse_ik_result(article) -> Optional[dict]:
+    """Parse one <article class="result"> block from an Indian Kanoon search page."""
+    title_link = article.select_one("h4.result_title a")
+    if not title_link:
+        return None
+    title = title_link.get_text(strip=True)
     if not title:
         return None
 
-    doc_id = str(doc.get("tid", ""))
-    citation = doc.get("citation", "")
-    court = doc.get("docsource", "")
-    year = _extract_year(doc.get("publishdate", ""))
-    headline = _clean_html(doc.get("headline", ""))
-    author = doc.get("author", "")
+    href = title_link.get("href", "")
+    id_match = _DOC_ID_RE.search(href)
+    if not id_match:
+        return None
+    doc_id = id_match.group(1)
+
+    court = article.select_one(".docsource")
+    court = court.get_text(strip=True) if court else ""
+    headline = article.select_one(".headline")
+    headline = headline.get_text(" ", strip=True) if headline else ""
+    year = _extract_year(title)
 
     practice_areas = _infer_practice_areas(title + " " + headline)
 
@@ -86,10 +98,10 @@ def _parse_ik_doc(doc: dict) -> Optional[dict]:
         "source": "indian_kanoon",
         "ik_doc_id": doc_id,
         "title": title,
-        "citation": citation,
+        "citation": "",
         "court": court,
         "year": year,
-        "author": author,
+        "author": "",
         "summary": headline[:500] if headline else "",
         "key_points": "",        # populated by AI extraction
         "decision": "",          # populated by AI extraction
@@ -97,10 +109,6 @@ def _parse_ik_doc(doc: dict) -> Optional[dict]:
         "practice_areas": practice_areas,
         "url": f"https://indiankanoon.org/doc/{doc_id}/",
     }
-
-
-def _clean_html(text: str) -> str:
-    return re.sub(r"<[^>]+>", " ", text).strip()
 
 
 def _extract_year(date_str: str) -> int:

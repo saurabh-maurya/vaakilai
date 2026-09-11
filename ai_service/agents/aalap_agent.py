@@ -223,9 +223,9 @@ LANDMARK CASES:
     return {
         "statute_name": statute_name,
         "ingredients": _parse_numbered_list(_extract_section(raw, "ESSENTIAL INGREDIENTS:", "BURDEN OF PROOF:")),
-        "burden_of_proof": _extract_section(raw, "BURDEN OF PROOF:", "EXCEPTIONS").strip(),
+        "burden_of_proof": _clean_markdown(_extract_section(raw, "BURDEN OF PROOF:", "EXCEPTIONS")),
         "exceptions": _parse_numbered_list(_extract_section(raw, "EXCEPTIONS", "PUNISHMENT")),
-        "punishment": _extract_section(raw, "PUNISHMENT/REMEDY:", "LANDMARK").strip(),
+        "punishment": _clean_markdown(_extract_section(raw, "PUNISHMENT/REMEDY:", "LANDMARK")),
         "landmark_cases": _parse_numbered_list(_extract_section(raw, "LANDMARK CASES:", None)),
         "raw_output": raw,
         "powered_by": "Aalap (OpenNyAI Mistral 7B)" if settings.aalap_enabled else "General LLM",
@@ -234,19 +234,35 @@ LANDMARK CASES:
 
 # ── Parsing helpers ───────────────────────────────────────────────────────────
 
+def _marker_pattern(marker: str) -> str:
+    """
+    Build a marker regex tolerant of how models actually format section
+    headers — e.g. "### **1. ESSENTIAL INGREDIENTS**" instead of the plain
+    "ESSENTIAL INGREDIENTS:" the prompt asked for. Matches optional markdown
+    heading/bullet/number noise around the label and an optional colon.
+    """
+    core = marker.rstrip(":").strip()
+    return r"[#\*\s]*\d*[\.\)]?\s*\*{0,2}\s*" + re.escape(core) + r"\s*\*{0,2}\s*:?"
+
+
 def _extract_section(text: str, start_marker: str, end_marker: Optional[str]) -> str:
     """Extract text between two markers (case-insensitive)."""
-    pattern = re.escape(start_marker)
-    start_m = re.search(pattern, text, re.IGNORECASE)
+    start_m = re.search(_marker_pattern(start_marker), text, re.IGNORECASE)
     if not start_m:
         return text  # fallback: return all
 
     start_idx = start_m.end()
     if end_marker:
-        end_m = re.search(re.escape(end_marker), text[start_idx:], re.IGNORECASE)
+        end_m = re.search(_marker_pattern(end_marker), text[start_idx:], re.IGNORECASE)
         if end_m:
             return text[start_idx: start_idx + end_m.start()].strip()
     return text[start_idx:].strip()
+
+
+def _clean_markdown(text: str) -> str:
+    """Strip markdown emphasis markers — the frontend renders these fields as
+    plain text, so unstripped **bold**/*italic* asterisks leak through literally."""
+    return re.sub(r"\*{1,2}(.+?)\*{1,2}", r"\1", text).strip()
 
 
 def _parse_numbered_list(text: str) -> list[str]:
@@ -254,7 +270,7 @@ def _parse_numbered_list(text: str) -> list[str]:
     if not text:
         return []
     items = re.split(r"\n\s*\d+[\.\)]\s*", "\n" + text)
-    return [i.strip() for i in items if i.strip()]
+    return [_clean_markdown(i) for i in items if i.strip()]
 
 
 def _parse_issues_list(text: str) -> list[str]:
@@ -272,6 +288,9 @@ def _parse_issues_list(text: str) -> list[str]:
 def _parse_timeline_events(text: str) -> list[dict]:
     """Parse DATE/EVENT/SIGNIFICANCE triplets from timeline text."""
     events = []
+    # Some models wrap the labels in markdown bold (**DATE:**) — strip that
+    # decoration first so the plain-text label matching below still works.
+    text = re.sub(r"\*{1,2}\s*(DATE|EVENT|SIGNIFICANCE)\s*:\s*\*{0,2}", r"\1:", text, flags=re.IGNORECASE)
     # Try structured parse first
     blocks = re.split(r"\n(?=DATE:)", text, flags=re.IGNORECASE)
     for block in blocks:
