@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Depends, Query
 from bson import ObjectId
+from bson.errors import InvalidId
 from datetime import datetime
 
 from database import get_db
@@ -8,6 +9,13 @@ from middleware.auth_middleware import get_current_user, require_lawyer
 from ai import client as ai_client
 
 router = APIRouter()
+
+
+def _oid(value: str) -> ObjectId:
+    try:
+        return ObjectId(value)
+    except (InvalidId, TypeError):
+        raise HTTPException(status_code=422, detail="Invalid ID format")
 
 
 def doc_out(doc: dict) -> dict:
@@ -27,7 +35,7 @@ async def onboard_lawyer(payload: LawyerProfileCreate, current_user: dict = Depe
 
     # Upgrade user role to lawyer
     await db.users.update_one(
-        {"_id": ObjectId(current_user["user_id"])},
+        {"_id": _oid(current_user["user_id"])},
         {"$set": {"role": "lawyer", "updated_at": datetime.utcnow()}},
     )
     return {"id": str(result.inserted_id), "message": "Lawyer profile created. Verification in progress."}
@@ -36,7 +44,7 @@ async def onboard_lawyer(payload: LawyerProfileCreate, current_user: dict = Depe
 @router.get("/lawyers/{lawyer_id}")
 async def get_lawyer(lawyer_id: str):
     db = get_db()
-    doc = await db.lawyer_profiles.find_one({"_id": ObjectId(lawyer_id)})
+    doc = await db.lawyer_profiles.find_one({"_id": _oid(lawyer_id)})
     if not doc:
         raise HTTPException(status_code=404, detail="Lawyer not found")
     return doc_out(doc)
@@ -46,7 +54,7 @@ async def get_lawyer(lawyer_id: str):
 async def update_lawyer(lawyer_id: str, payload: LawyerProfileUpdate, current_user: dict = Depends(require_lawyer)):
     db = get_db()
     # Lawyers can only update their own profile; admins can update any
-    query = {"_id": ObjectId(lawyer_id)}
+    query = {"_id": _oid(lawyer_id)}
     if current_user["role"] != "admin":
         query["user_id"] = current_user["user_id"]
     existing = await db.lawyer_profiles.find_one(query)
@@ -54,7 +62,7 @@ async def update_lawyer(lawyer_id: str, payload: LawyerProfileUpdate, current_us
         raise HTTPException(status_code=404, detail="Lawyer profile not found")
     update_data = {k: v for k, v in payload.model_dump().items() if v is not None}
     update_data["updated_at"] = datetime.utcnow()
-    await db.lawyer_profiles.update_one({"_id": ObjectId(lawyer_id)}, {"$set": update_data})
+    await db.lawyer_profiles.update_one({"_id": _oid(lawyer_id)}, {"$set": update_data})
     return {"message": "Profile updated"}
 
 
@@ -135,7 +143,7 @@ async def ai_match_lawyers(
 @router.get("/lawyers/{lawyer_id}/availability")
 async def get_availability(lawyer_id: str):
     db = get_db()
-    doc = await db.lawyer_profiles.find_one({"_id": ObjectId(lawyer_id)}, {"availability_slots": 1})
+    doc = await db.lawyer_profiles.find_one({"_id": _oid(lawyer_id)}, {"availability_slots": 1})
     if not doc:
         raise HTTPException(status_code=404, detail="Lawyer not found")
     return {"slots": doc.get("availability_slots", [])}
@@ -148,14 +156,14 @@ async def set_availability(
     current_user: dict = Depends(require_lawyer),
 ):
     db = get_db()
-    query = {"_id": ObjectId(lawyer_id)}
+    query = {"_id": _oid(lawyer_id)}
     if current_user["role"] != "admin":
         query["user_id"] = current_user["user_id"]
     existing = await db.lawyer_profiles.find_one(query)
     if not existing:
         raise HTTPException(status_code=404, detail="Lawyer profile not found")
     await db.lawyer_profiles.update_one(
-        {"_id": ObjectId(lawyer_id)},
+        {"_id": _oid(lawyer_id)},
         {"$set": {"availability_slots": [s.model_dump() for s in slots], "updated_at": datetime.utcnow()}},
     )
     return {"message": "Availability updated"}
