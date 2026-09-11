@@ -57,7 +57,7 @@ huggingface-hub==0.26.2
 sentry-sdk[fastapi]==2.8.0
 
 # Redis (distributed rate limiting)
-redis==5.0.4
+redis==8.0.1
 
 # Metrics (Prometheus)
 # 6.1.0 crashes on included-router routes ('_IncludedRouter' has no .path);
