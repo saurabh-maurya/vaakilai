@@ -295,17 +295,17 @@ export const aiConsultApi = {
   },
 
   searchResearch: async (query: string, filters?: { court?: string; year_from?: number; practice_area?: string }): Promise<JudgmentResult[]> => {
-    const { data } = await aiApi.post<JudgmentResult[]>("/ai/research/search", { query, ...filters });
+    const { data } = await aiApi.post<JudgmentResult[]>("/ai/research/search", { query, ...filters }, { timeout: 90_000 });
     return data;
   },
 
   findPrecedents: async (facts: string, practiceArea: string): Promise<PrecedentResult[]> => {
-    const { data } = await aiApi.post<PrecedentResult[]>("/ai/research/precedents", { facts, practice_area: practiceArea });
+    const { data } = await aiApi.post<PrecedentResult[]>("/ai/research/precedents", { facts, practice_area: practiceArea }, { timeout: 90_000 });
     return data;
   },
 
   generateMemo: async (topic: string, judgments: string[]): Promise<{ memo: string }> => {
-    const { data } = await aiApi.post<{ memo: string }>("/ai/research/memo", { topic, judgment_ids: judgments });
+    const { data } = await aiApi.post<{ memo: string }>("/ai/research/memo", { topic, judgment_ids: judgments }, { timeout: 90_000 });
     return data;
   },
 
@@ -313,7 +313,7 @@ export const aiConsultApi = {
     const { data } = await aiApi.post<{ score: number; reason: string }>("/ai/match/score", {
       case_description: caseDescription,
       lawyer_id: lawyerId,
-    });
+    }, { timeout: 90_000 });
     return data;
   },
 };

@@ -58,7 +58,7 @@ export default function StatuteBreakdownPage() {
       const { data } = await aiApi.post("/ai/legal-tasks/statute-breakdown", {
         statute_text: statuteText,
         statute_name: statuteName,
-      });
+      }, { timeout: 90_000 });
       setResult(data);
     } catch {
       setResult({

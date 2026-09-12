@@ -39,7 +39,7 @@ export default function IssueSpotterPage() {
     setLoading(true);
     setResult(null);
     try {
-      const { data } = await aiApi.post("/ai/legal-tasks/issue-spotter", form);
+      const { data } = await aiApi.post("/ai/legal-tasks/issue-spotter", form, { timeout: 90_000 });
       setResult(data);
     } catch {
       setResult({

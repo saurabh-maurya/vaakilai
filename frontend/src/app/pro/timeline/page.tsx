@@ -42,7 +42,7 @@ export default function EventTimelinePage() {
       const { data } = await aiApi.post("/ai/legal-tasks/event-timeline", {
         case_description: caseDescription,
         source_type: sourceType,
-      });
+      }, { timeout: 90_000 });
       setResult(data);
     } catch {
       setResult({

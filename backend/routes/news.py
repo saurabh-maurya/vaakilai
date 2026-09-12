@@ -4,7 +4,9 @@ Aggregates RSS from Bar & Bench and LiveLaw; cached in-process for 15 min.
 Falls back to static curated links if feeds are unreachable.
 """
 
+import html
 import logging
+import re
 from fastapi import APIRouter, Query
 from typing import Optional
 import httpx
@@ -128,8 +130,14 @@ def _parse_rss(xml_text: str, source_name: str, category: str) -> list[dict]:
             link    = link_el.text.strip()   if link_el   is not None else ""
             pub     = pub_el.text.strip()    if pub_el    is not None else ""
             summary = desc_el.text.strip()   if desc_el   is not None else ""
-            # strip HTML tags from summary
-            summary = summary[:300].replace("<p>", "").replace("</p>", "").replace("<br/>", " ")
+            # Strip all HTML tags (feeds emit attributed tags like
+            # <p style="font-style: italic;">, not just bare <p>), then
+            # decode entities left over from the feed's embedded HTML being
+            # double-escaped (e.g. "&amp;amp;" -> "&amp;" after XML parsing),
+            # then truncate so we don't cut a tag/entity in half first.
+            summary = re.sub(r"<[^>]+>", " ", summary)
+            summary = html.unescape(summary)
+            summary = re.sub(r"\s+", " ", summary).strip()[:300]
             articles.append({
                 "id": f"{source_name[:3].lower()}{idx}",
                 "title": title,

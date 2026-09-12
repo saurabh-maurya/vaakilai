@@ -262,7 +262,11 @@ def _extract_section(text: str, start_marker: str, end_marker: Optional[str]) ->
 def _clean_markdown(text: str) -> str:
     """Strip markdown emphasis markers — the frontend renders these fields as
     plain text, so unstripped **bold**/*italic* asterisks leak through literally."""
-    return re.sub(r"\*{1,2}(.+?)\*{1,2}", r"\1", text).strip()
+    text = re.sub(r"\*{1,2}(.+?)\*{1,2}", r"\1", text).strip()
+    # Also drop any unpaired leading/trailing asterisks left when a bold span
+    # opened or closed outside the extracted slice (e.g. "**ISSUE 1: ...**"
+    # where the captured group starts after "ISSUE 1:", inside the bold span).
+    return text.strip("* ").strip()
 
 
 def _parse_numbered_list(text: str) -> list[str]:
@@ -275,13 +279,16 @@ def _parse_numbered_list(text: str) -> list[str]:
 
 def _parse_issues_list(text: str) -> list[str]:
     """Parse ISSUE N: entries from text."""
+    if not text or not text.strip():
+        return []
     issues = re.findall(r"ISSUE\s*\d+:\s*(.+?)(?=ISSUE\s*\d+:|PRIMARY ISSUE:|$)", text, re.IGNORECASE | re.DOTALL)
     cleaned = []
     for issue in issues:
-        # Strip sub-fields (Applicable Law, Nature) if included inline
-        first_line = issue.split("\n")[0].strip()
-        if first_line:
-            cleaned.append(first_line)
+        # The issue statement may start on the line right after "ISSUE N:"
+        # rather than inline, so skip blank lines before taking the first one.
+        lines = [l.strip() for l in issue.split("\n") if l.strip()]
+        if lines:
+            cleaned.append(_clean_markdown(lines[0]))
     return cleaned if cleaned else [text.strip()[:200]]
 
 
@@ -292,16 +299,27 @@ def _parse_timeline_events(text: str) -> list[dict]:
     # decoration first so the plain-text label matching below still works.
     text = re.sub(r"\*{1,2}\s*(DATE|EVENT|SIGNIFICANCE)\s*:\s*\*{0,2}", r"\1:", text, flags=re.IGNORECASE)
     # Try structured parse first
-    blocks = re.split(r"\n(?=DATE:)", text, flags=re.IGNORECASE)
+    # A value stops at a newline, or at the next DATE:/EVENT:/SIGNIFICANCE:
+    # label if the model ran fields together on one line instead of separate lines.
+    field_end = r"(?=\n|\s*(?:DATE|EVENT|SIGNIFICANCE):|$)"
+    blocks = re.split(r"\n(?=\s*DATE:)", text, flags=re.IGNORECASE)
     for block in blocks:
-        date_m = re.search(r"DATE:\s*(.+)", block, re.IGNORECASE)
-        event_m = re.search(r"EVENT:\s*(.+)", block, re.IGNORECASE)
-        sig_m = re.search(r"SIGNIFICANCE:\s*(.+)", block, re.IGNORECASE)
+        date_m = re.search(r"DATE:\s*(.+?)" + field_end, block, re.IGNORECASE)
+        event_m = re.search(r"EVENT:\s*(.+?)" + field_end, block, re.IGNORECASE)
+        sig_m = re.search(r"SIGNIFICANCE:\s*(.+?)" + field_end, block, re.IGNORECASE)
+        # A preamble/intro paragraph can end up sharing a block with the first
+        # real DATE: field when the model doesn't put DATE: at a line start —
+        # skip anything before the DATE: label so only the field values remain.
+        if date_m:
+            block = block[date_m.start():]
+            date_m = re.search(r"DATE:\s*(.+?)" + field_end, block, re.IGNORECASE)
+            event_m = re.search(r"EVENT:\s*(.+?)" + field_end, block, re.IGNORECASE)
+            sig_m = re.search(r"SIGNIFICANCE:\s*(.+?)" + field_end, block, re.IGNORECASE)
         if date_m or event_m:
             events.append({
-                "date": date_m.group(1).strip() if date_m else "",
-                "event": event_m.group(1).strip() if event_m else block.strip()[:200],
-                "significance": sig_m.group(1).strip() if sig_m else "",
+                "date": date_m.group(1).strip(" *\t") if date_m else "",
+                "event": _clean_markdown(event_m.group(1)) if event_m else block.strip(" *\t\n")[:200],
+                "significance": _clean_markdown(sig_m.group(1)) if sig_m else "",
             })
 
     # Fallback: numbered list

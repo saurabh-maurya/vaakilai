@@ -94,7 +94,11 @@ async def analyse_judge(payload: JudgeAnalyticsRequest, current_user: dict = Dep
 
         # Search for cases by this judge
         query = f"judge {payload.judge_name} {payload.court} {payload.practice_area}".strip()
-        results = await case_store.search(query, k=payload.top_k)
+        try:
+            results = await case_store.search(query, k=payload.top_k)
+        except Exception as e:
+            logger.warning(f"Case search unavailable for judge analytics, proceeding with no results: {e}")
+            results = []
 
         if not results:
             # Return a demo profile when no cases are indexed
@@ -143,7 +147,11 @@ async def analyse_court(payload: CourtTendencyRequest, current_user: dict = Depe
         from rag.vector_store import case_store
 
         query = f"court {payload.court} {payload.practice_area}".strip()
-        results = await case_store.search(query, k=50)
+        try:
+            results = await case_store.search(query, k=50)
+        except Exception as e:
+            logger.warning(f"Case search unavailable for court analytics, proceeding with no results: {e}")
+            results = []
 
         if not results:
             return {

@@ -4,6 +4,7 @@ RAG case search — semantic search over FAISS + AI-generated summaries.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import re
@@ -28,7 +29,11 @@ async def search_cases(
     Each result has: id, title, citation, court, year, summary,
                      key_points, decision, relevance_score, url
     """
-    raw_results = await case_store.search(query, k=min(k * 2, 50))
+    try:
+        raw_results = await case_store.search(query, k=min(k * 2, 50))
+    except Exception as e:
+        logger.error(f"Vector search failed, proceeding with no results: {e}")
+        raw_results = []
 
     # Filter by practice area / year
     filtered = []
@@ -96,17 +101,18 @@ async def search_within_case(case_id: str, query: str) -> dict:
 
 
 async def _enrich_results(results: List[dict], query: str) -> List[dict]:
-    """Fill in missing key_points + decision for cases that need it."""
-    enriched = []
+    """Fill in missing key_points + decision for cases that need it, concurrently."""
     provider = get_llm_provider()
-    for case in results:
+
+    async def enrich_one(case: dict) -> dict:
         if not case.get("key_points") or not case.get("decision"):
             text = case.get("full_text") or case.get("summary", "")
             if text:
                 extracted = await _extract_key_info_from_text(text[:3000], case.get("title", ""), provider)
-                case = {**case, **extracted}
-        enriched.append(case)
-    return enriched
+                return {**case, **extracted}
+        return case
+
+    return await asyncio.gather(*(enrich_one(case) for case in results))
 
 
 async def _extract_key_info(case: dict) -> dict:

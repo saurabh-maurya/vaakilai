@@ -271,7 +271,8 @@ export default function CaseIntelligencePage() {
 
           {/* Pre-Filing Results */}
           {mode === "prefiling" && prefilingResult && (() => {
-            const riskStyle = RISK_STYLES[prefilingResult.overall_risk];
+            const normalizedRisk = (prefilingResult.overall_risk || "").toLowerCase().trim();
+            const riskStyle = RISK_STYLES[normalizedRisk as keyof typeof RISK_STYLES] ?? RISK_STYLES.medium;
             return (
               <>
                 <div className="vk-card p-5">
@@ -285,7 +286,7 @@ export default function CaseIntelligencePage() {
                   <div className="confidence-bar mb-3">
                     <div className="confidence-fill" style={{
                       width: `${prefilingResult.risk_score}%`,
-                      background: prefilingResult.overall_risk === "high" ? "#ef4444" : prefilingResult.overall_risk === "medium" ? "#f59e0b" : "#22c55e",
+                      background: normalizedRisk === "high" || normalizedRisk === "critical" ? "#ef4444" : normalizedRisk === "medium" ? "#f59e0b" : "#22c55e",
                     }} />
                   </div>
                   <div className="grid grid-cols-2 gap-3 text-xs mt-4">
@@ -324,7 +325,7 @@ export default function CaseIntelligencePage() {
                       <span className="text-sm font-semibold">Procedural Risks</span>
                     </div>
                     <ul className="space-y-2">
-                      {prefilingResult.procedural_risks.map((r, i) => (
+                      {(prefilingResult.procedural_risks || []).map((r, i) => (
                         <li key={i} className="flex items-start gap-2 text-xs text-dim">
                           <span className="text-gold shrink-0 mt-0.5">→</span>
                           <span>{r}</span>
@@ -341,7 +342,7 @@ export default function CaseIntelligencePage() {
                       <span className="text-sm font-semibold">Alternative Remedies</span>
                     </div>
                     <ul className="space-y-2">
-                      {prefilingResult.alternative_remedies.map((r, i) => (
+                      {(prefilingResult.alternative_remedies || []).map((r, i) => (
                         <li key={i} className="flex items-start gap-2 text-xs text-dim">
                           <span className="text-gold shrink-0 mt-0.5">→</span>
                           <span>{r}</span>
@@ -357,7 +358,7 @@ export default function CaseIntelligencePage() {
                     <span className="text-sm font-semibold">Recommendations</span>
                   </div>
                   <ul className="space-y-2">
-                    {prefilingResult.recommendations.map((r, i) => (
+                    {(prefilingResult.recommendations || []).map((r, i) => (
                       <li key={i} className="flex items-start gap-2 text-xs text-dim">
                         <span className="text-gold shrink-0 mt-0.5">→</span>
                         <span>{r}</span>
@@ -400,14 +401,16 @@ export default function CaseIntelligencePage() {
                 <div className="vk-card p-4">
                   <h3 className="text-sm font-semibold mb-3">Similar Cases</h3>
                   <div className="space-y-2">
-                    {predictResult.similar_cases.map((c, i) => (
+                    {(predictResult.similar_cases || []).map((c, i) => (
                       <div key={i} className="rounded-lg p-3 text-xs" style={{ background: "var(--vk-navy-light)" }}>
                         <div className="flex items-start justify-between gap-2">
-                          <div>
+                          <div className="flex-1 min-w-0">
                             <p className="font-semibold">{c.title || "Untitled"}{c.year ? ` (${c.year})` : ""}</p>
                             {c.citation && <p className="font-mono text-gold mt-0.5">{c.citation}</p>}
                           </div>
-                          {c.decision && <span className="vk-badge vk-badge-green shrink-0">{c.decision}</span>}
+                          {c.decision && (
+                            <span className="vk-badge vk-badge-green whitespace-normal text-left max-w-[45%]">{c.decision}</span>
+                          )}
                         </div>
                       </div>
                     ))}

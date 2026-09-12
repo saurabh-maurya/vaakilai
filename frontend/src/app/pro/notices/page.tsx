@@ -67,7 +67,7 @@ export default function NoticeDrafterPage() {
         compliance_days: complianceDays,
         advocate_name: advocateName,
         extra_instructions: extra,
-      });
+      }, { timeout: 90_000 });
       setResult(data);
     } catch (e: unknown) {
       const err = e as { response?: { status?: number; data?: { detail?: string } } };

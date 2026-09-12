@@ -105,8 +105,9 @@ def _parse_safety_result(text: str, powered_by: str) -> dict:
         match = re.search(r"\{.*\}", text, re.DOTALL)
         if match:
             data = json.loads(match.group())
-            data["powered_by"] = powered_by
-            return data
+            if data.get("overall_risk"):
+                data["powered_by"] = powered_by
+                return data
     except Exception:
         pass
     # Fallback
