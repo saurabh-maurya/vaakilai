@@ -17,7 +17,7 @@ anthropic==0.34.0
 sse-starlette==2.1.0
 
 # Vector DB client (Pinecone) — optional
-pinecone-client==5.0.1
+pinecone-client==6.0.0
 
 # FAISS (local vector search — CPU only)
 faiss-cpu==1.14.3
