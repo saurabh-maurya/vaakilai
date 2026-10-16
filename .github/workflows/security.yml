@@ -25,7 +25,7 @@ jobs:
         run: bandit -r backend/ -ll -x backend/tests/ -f json -o bandit-backend.json
       - name: Run Bandit on ai_service
         run: bandit -r ai_service/ -ll -x ai_service/tests/ -f json -o bandit-ai.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: bandit-results
           path: bandit-*.json
@@ -49,7 +49,7 @@ jobs:
           pip-audit -r ${{ matrix.service }}/requirements.txt \
             --output json \
             --output-file pip-audit-${{ matrix.service }}.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: pip-audit-${{ matrix.service }}
           path: pip-audit-${{ matrix.service }}.json
@@ -71,7 +71,7 @@ jobs:
       - name: Run npm audit
         working-directory: frontend
         run: npm audit --audit-level=high --json > ../npm-audit.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: npm-audit
           path: npm-audit.json
@@ -134,7 +134,7 @@ jobs:
             --exclude "*/node_modules/*" \
             --json > semgrep.json
         continue-on-error: true
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: semgrep-results
